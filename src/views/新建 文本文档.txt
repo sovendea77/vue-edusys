@@ -1,0 +1,391 @@
+现在我需要在正下方加一个保存按钮，点击保存后，先前定义的所有题目答案栏都会被后端数据库题目表保存，必要信息包括题目id，考试id（外键），题目栏序号（一，二，三...）以及题目类型（选择题，填空题，判断题），每道小题的序号和答案（1.A,2.B...），分值。保存后，将会固定显示所有的答案栏目，不会被刷新也不可被删除
+
+
+
+<template>
+  <div class="homework-system">
+    <h1 class="system-title">智能作业批改系统</h1>
+    
+    <div class="answer-definition-section">
+      <h2>请完成答案定义</h2>
+      
+      <!-- 题目类型列表 -->
+      <div class="question-sections">
+        <el-card v-for="(section, sectionIndex) in questionSections" :key="sectionIndex" class="question-section-card">
+          <div class="section-header">
+            <div class="section-type-badge" :class="getTypeClass(section.type)">
+              {{ getChineseNumber(sectionIndex + 1) }}、{{ getTypeName(section.type) }}
+              <span class="section-score">{{ section.score }}分</span>
+            </div>
+            
+            <div class="questions-container">
+              <div v-for="(question, qIndex) in section.questions" :key="qIndex" class="question-item">
+                {{ section.startNum + qIndex }}. 
+                <el-input 
+                  v-model="question.answer" 
+                  :placeholder="getPlaceholder(section.type)" 
+                  class="answer-input"
+                  size="small"
+                  :class="{'judgment-input': section.type === 'judgment'}"
+                ></el-input>
+                
+                <el-select 
+                  v-if="section.type === 'judgment'" 
+                  v-model="question.answer" 
+                  placeholder="" 
+                  size="small"
+                  class="judgment-select"
+                >
+                  <el-option label="对" value="对"></el-option>
+                  <el-option label="错" value="错"></el-option>
+                </el-select>
+                
+                <el-button 
+                  type="text" 
+                  icon="el-icon-minus" 
+                  @click="deleteQuestion(section, qIndex)"
+                  class="delete-question-btn"
+                  v-if="section.questions.length > 1 && qIndex === section.questions.length - 1"
+                ></el-button>
+              </div>
+              
+              <div class="add-question">
+                <el-button 
+                  type="text" 
+                  icon="el-icon-plus" 
+                  @click="addQuestion(section)"
+                  class="add-question-btn"
+                ></el-button>
+              </div>
+            </div>
+            
+            <div class="section-footer">
+              <el-button 
+                type="text" 
+                icon="el-icon-delete" 
+                @click="deleteSection(sectionIndex)"
+                class="delete-section-btn"
+              ></el-button>
+            </div>
+          </div>
+        </el-card>
+      </div>
+      
+      <!-- 添加新题目类型 -->
+      <div class="add-section-container">
+        <el-card class="add-section-card" shadow="hover" @click.native="showAddSectionDialog">
+          <div class="add-section-header">
+            <i class="el-icon-plus add-section-icon"></i>
+            <span class="add-section-text">添加新题型</span>
+          </div>
+        </el-card>
+      </div>
+      
+      <!-- 自动填充提示 -->
+      <div class="auto-fill-tip">
+        <el-button type="text" size="small">自己填太慢? 试试上传扫描件让AI生成答案</el-button>
+      </div>
+    </div>
+    
+    <!-- 添加题目类型对话框 -->
+    <el-dialog title="请完成答案定义" :visible.sync="addSectionDialogVisible" width="30%">
+      <el-form :model="newSection" label-width="100px">
+        <el-form-item label="题目类型:">
+          <el-radio-group v-model="newSection.type">
+            <el-radio label="choice">选择题</el-radio>
+            <el-radio label="fill">填空题</el-radio>
+            <el-radio label="judgment">判断题</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        
+        <el-form-item label="起始题号:">
+          <el-input-number v-model="newSection.startNum" :min="1" :max="100"></el-input-number>
+        </el-form-item>
+        
+        <el-form-item label="每题分值:">
+          <el-input-number v-model="newSection.score" :min="1" :max="100"></el-input-number>
+        </el-form-item>
+      </el-form>
+      
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addSectionDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="addSection">完成</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'Home',
+  data() {
+    return {
+      questionSections: [],
+      addSectionDialogVisible: false,
+      newSection: {
+        type: 'choice',
+        startNum: 1,
+        score: 3,
+        questions: []
+      }
+    }
+  },
+  methods: {
+    getChineseNumber(num) {
+      const chineseNumbers = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+      if (num <= 0 || num > 99) return num
+      if (num <= 10) return chineseNumbers[num - 1]
+      
+      const tens = Math.floor(num / 10)
+      const ones = num % 10
+      
+      if (tens === 1) {
+        return ones === 0 ? '十' : `十${chineseNumbers[ones - 1]}`
+      }
+      
+      return ones === 0 
+        ? `${chineseNumbers[tens - 1]}十`
+        : `${chineseNumbers[tens - 1]}十${chineseNumbers[ones - 1]}`
+    },
+    getTypeName(type) {
+      const typeMap = {
+        'choice': '选择题',
+        'fill': '填空题',
+        'judgment': '判断题'
+      }
+      return typeMap[type] || '未知题型'
+    },
+    getTypeClass(type) {
+      return `type-${type}`
+    },
+    getPlaceholder(type) {
+      const placeholderMap = {
+        'choice': '请输入选项',
+        'fill': '请输入答案',
+        'judgment': '请选择'
+      }
+      return placeholderMap[type] || ''
+    },
+    showAddSectionDialog() {
+      this.newSection = {
+        type: 'choice',
+        startNum: 1,
+        score: 3,
+        questions: []
+      }
+      this.addSectionDialogVisible = true
+    },
+    addSection() {
+      // 创建新的题目类型区域
+      const newSection = {
+        type: this.newSection.type,
+        startNum: this.newSection.startNum,
+        score: this.newSection.score,
+        questions: [{ answer: '' }] // 默认添加一个空答案
+      }
+      
+      this.questionSections.push(newSection)
+      this.addSectionDialogVisible = false
+    },
+    addQuestion(section) {
+      section.questions.push({ answer: '' })
+    },
+    deleteSection(index) {
+      this.$confirm('确定要删除这个答案栏吗?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.questionSections.splice(index, 1)
+        this.$message({
+          type: 'success',
+          message: '删除成功!'
+        })
+      }).catch(() => {
+        this.$message({
+          type: 'info',
+          message: '已取消删除'
+        })          
+      })
+    },
+    deleteQuestion(section, index) {
+      if (section.questions.length > 1) {
+        section.questions.splice(index, 1)
+      }
+    }
+  }
+}
+</script>
+
+<style scoped>
+.homework-system {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.system-title {
+  text-align: center;
+  color: white;
+  background-color: #409EFF;
+  padding: 15px;
+  margin-top: 0;
+  border-radius: 4px;
+}
+
+.answer-definition-section {
+  margin-top: 20px;
+}
+
+.question-sections {
+  margin-bottom: 20px;
+}
+
+.question-section-card {
+  margin-bottom: 15px;
+}
+
+.section-header {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-type-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 15px;
+  color: white;
+  margin-bottom: 10px;
+}
+
+.type-choice {
+  background-color: #67C23A;
+}
+
+.type-fill {
+  background-color: #E6A23C;
+}
+
+.type-judgment {
+  background-color: #F56C6C;
+}
+
+.section-score {
+  margin-left: 5px;
+}
+
+.questions-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.question-item {
+  display: flex;
+  align-items: center;
+  margin-right: 15px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.answer-input {
+  width: 80px;
+  margin-left: 5px;
+}
+
+.judgment-input {
+  display: none;
+}
+
+.judgment-select {
+  width: 80px;
+  margin-left: 5px;
+}
+
+.add-question {
+  margin-left: 10px;
+}
+
+.add-question-btn {
+  border: 1px dashed #ccc;
+  border-radius: 50%;
+  padding: 5px;
+}
+
+.add-section-container {
+  margin-top: 20px;
+}
+
+.add-section-card {
+  border: 1px dashed #ccc;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.add-section-card:hover {
+  border-color: #409EFF;
+  background-color: #f5f7fa;
+}
+
+.add-section-header {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #909399;
+}
+
+.add-section-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.add-section-text {
+  font-size: 14px;
+}
+
+.section-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.delete-section-btn {
+  color: #F56C6C;
+}
+
+.delete-question-btn {
+  color: #F56C6C;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  padding: 2px;
+  font-size: 12px;
+  background-color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.auto-fill-tip {
+  text-align: left;
+  margin-top: 20px;
+}
+
+.auto-fill-tip .el-button {
+  color: white;
+  background-color: #409EFF;
+  padding: 8px 15px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.auto-fill-tip .el-button:active {
+  background-color: #3080cc; 
+}
+</style>
+
