@@ -34,6 +34,18 @@
                   size="small"
                   :class="{'judgment-input': section.type === 'judgment'}"
                   :disabled="answersSaved"
+                  v-if="section.type !== 'essay'"
+                ></el-input>
+                
+                <el-input 
+                  v-if="section.type === 'essay'" 
+                  v-model="question.answer" 
+                  :placeholder="getPlaceholder(section.type)" 
+                  type="textarea"
+                  :rows="5"
+                  resize="none"
+                  class="essay-input"
+                  :disabled="answersSaved"
                 ></el-input>
                 
                 <el-select 
@@ -147,6 +159,7 @@
             <el-radio label="choice">选择题</el-radio>
             <el-radio label="fill">填空题</el-radio>
             <el-radio label="judgment">判断题</el-radio>
+            <el-radio label="essay">解答题</el-radio>
           </el-radio-group>
         </el-form-item>
         
@@ -246,7 +259,8 @@ export default {
       const typeMap = {
         'choice': '选择题',
         'fill': '填空题',
-        'judgment': '判断题'
+        'judgment': '判断题',
+        'essay': '解答题'
       }
       return typeMap[type] || '未知题型'
     },
@@ -257,7 +271,8 @@ export default {
       const placeholderMap = {
         'choice': '请输入选项',
         'fill': '请输入答案',
-        'judgment': '请选择'
+        'judgment': '请选择',
+        'essay': '请输入解答'
       }
       return placeholderMap[type] || ''
     },
@@ -520,105 +535,95 @@ export default {
               }
               
               // 正则表达式模式 - 改进中文题号匹配
-              const sectionPattern = /^([一二三四五六七八九十]{1,3})?[、.：:]?\s*(选择题|填空题|判断题)(?:[:：])?(?:\s*[（(（]\s*(?:每小题|每题)?\s*(\d+)\s*分.*?[）)）])?/;
-              const answerPattern = /^\s*(\d+)[.．、:：]\s*(.+)/;
+              const sectionPattern = /^([一二三四五六七八九十]{1,3})?[、.：:]?\s*(选择题|填空题|判断题|解答题)(?:[:：])?(?:\s*[（(（]\s*(?:每小题|每题)?\s*(\d+)\s*分.*?[）)）])?/;
+              // 添加负向后顾断言(?<!\.)，确保不匹配小数点后的数字
+              const answerPattern = /^\s*(?<!\.)(\d+)[.．、:：]\s*(.+)/;
+              // 不再使用这个正则表达式，保留但不修改
               const multiAnswersPattern = /(\d+)[.．、:：]\s*([^,，;；]+)[,，;；]?/g; // 用于解析逗号分隔的多个答案
               
-              // 处理每一行
-              for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                console.log(`处理第${i + 1}行: "${line}"`);
-                
-                // 检查是否是题型标题行
-                const sectionMatch = line.match(sectionPattern);
-                if (sectionMatch) {
-                  // 如果找到新题型标题，先处理之前的答案
-                  if (currentType && tempAnswers.length > 0) {
-                    // 获取最小题号作为起始题号
-                    const startNum = tempAnswers.length > 0 ? Math.min(...tempAnswers.map(a => a.num)) : 1;
-                    // 传递上一个题型的中文题号
-                    this.processAnswers(currentType, startNum, currentScore, tempAnswers, chineseNum);
-                  }
-                  
-                  // 解析中文序号（可能为空）
-                  chineseNum = sectionMatch[1] || '';
-                  // 获取题型
-                  const questionType = sectionMatch[2];
-                  // 获取分数（如果有）
-                  const score = sectionMatch[3] ? parseInt(sectionMatch[3], 10) : 3;
-                  console.log(`识别到分数: ${score}, 原始匹配: ${sectionMatch[3]}`);
-                  
-                  // 确定题型代码
-                  let newType = null;
-                  if (questionType.includes('选择')) {
-                    newType = 'choice';
-                  } else if (questionType.includes('填空')) {
-                    newType = 'fill';
-                  } else if (questionType.includes('判断')) {
-                    newType = 'judgment';
-                  } else {
-                    newType = null;
-                    continue;
-                  }
-                  
-                  // 确保分数是有效的数字
-                  if (typeof score === 'number' && !isNaN(score) && score > 0) {
-                    currentScore = score;
-                    console.log(`设置当前分数为: ${currentScore}`);
-                  } else {
-                    console.log(`分数无效，使用默认分数: 3`);
-                    currentScore = 3;
-                  }
-                  
-                  // 每次识别到题型标题时，都创建新的题型区域
-                  // 无论是否是相同题型，都创建新的题型区域
-                  currentType = newType;
-                  lastSectionType = newType;
-                  currentSectionIndex++;
-                  tempAnswers = [];
-                  
-                  console.log(`创建新题型区域: ${questionType}, 索引: ${currentSectionIndex}, 中文题号: ${chineseNum}`);
-                  
-                  console.log(`识别到题型: ${questionType}, 分数: ${score}`);
-                  
-                  // 检查同一行是否包含答案
-                  const remainingText = line.replace(sectionPattern, '').trim();
-                  if (remainingText) {
-                    // 移除可能的冒号
-                    const answerText = remainingText.replace(/^[：:]\s*/, '').trim();
-                    if (answerText) {
-                      // 尝试解析标题行中的答案
-                      this.parseCommaSeparatedAnswers(answerText, tempAnswers);
-                    }
-                  }
-                  continue;
+              // 首先，按题型分割文本
+              // 使用正则表达式匹配题型标题行
+              const sectionRegex = new RegExp(sectionPattern, 'gm');
+              let sectionMatch;
+              let lastIndex = 0;
+              let sections = [];
+              
+              // 查找所有题型标题
+              while ((sectionMatch = sectionRegex.exec(aiResult)) !== null) {
+                const matchIndex = sectionMatch.index;
+                // 如果不是第一个匹配，将上一个匹配到当前匹配之间的内容作为一个部分
+                if (lastIndex > 0) {
+                  sections.push({
+                    text: aiResult.substring(lastIndex, matchIndex),
+                    type: currentType,
+                    chineseNum: chineseNum,
+                    score: currentScore
+                  });
                 }
                 
-                // 对于非题型标题行，尝试解析为答案
-                if (currentType) {
-                  // 优先使用严格匹配题号的方式处理答案
-                  let hasAnswers = this.parseCommaSeparatedAnswers(line, tempAnswers);
-                  
-                  // 如果严格匹配方式无法解析，尝试使用单行答案解析
-                  if (!hasAnswers) {
-                    const answerMatch = line.match(answerPattern);
-                    if (answerMatch) {
-                      const num = parseInt(answerMatch[1], 10);
-                      // 移除答案末尾的逗号
-                      let answer = answerMatch[2].trim();
-                      answer = answer.replace(/[,，。.]+$/, '');
-                      
-                      console.log(`  单行答案: 题号=${num}, 答案="${answer}"`);
-                      tempAnswers.push({ num, answer });
-                      hasAnswers = true;
-                    }
-                  }
-                  
-                  // 更新起始题号
-                  if (tempAnswers.length > 0) {
-                    const minNum = Math.min(...tempAnswers.map(a => a.num));
-                    console.log(`发现最小题号=${minNum}`);
-                  }
+                // 解析中文序号（可能为空）
+                chineseNum = sectionMatch[1] || '';
+                // 获取题型
+                const questionType = sectionMatch[2];
+                // 获取分数（如果有）
+                const score = sectionMatch[3] ? parseInt(sectionMatch[3], 10) : 3;
+                console.log(`识别到题型: ${questionType}, 分数: ${score}, 中文题号: ${chineseNum}`);
+                
+                // 确定题型代码
+                if (questionType.includes('选择')) {
+                  currentType = 'choice';
+                } else if (questionType.includes('填空')) {
+                  currentType = 'fill';
+                } else if (questionType.includes('判断')) {
+                  currentType = 'judgment';
+                } else if (questionType.includes('解答')) {
+                  currentType = 'essay';
+                } else {
+                  currentType = null;
+                }
+                
+                // 确保分数是有效的数字
+                if (typeof score === 'number' && !isNaN(score) && score > 0) {
+                  currentScore = score;
+                } else {
+                  currentScore = 3;
+                }
+                
+                lastIndex = matchIndex + sectionMatch[0].length;
+              }
+              
+              // 添加最后一个部分
+              if (lastIndex < aiResult.length && currentType) {
+                sections.push({
+                  text: aiResult.substring(lastIndex),
+                  type: currentType,
+                  chineseNum: chineseNum,
+                  score: currentScore
+                });
+              }
+              
+              console.log(`识别到 ${sections.length} 个题型区域`);
+              
+              // 处理每个题型区域
+              for (let i = 0; i < sections.length; i++) {
+                const section = sections[i];
+                if (!section.type) continue;
+                
+                console.log(`处理题型区域 ${i+1}: ${this.getTypeName(section.type)}, 中文题号: ${section.chineseNum}`);
+                
+                // 为每个题型创建一个新的答案数组
+                tempAnswers = [];
+                
+                // 使用改进后的方法处理整个文本块，而不是按行处理
+                this.parseCommaSeparatedAnswers(section.text, tempAnswers);
+                
+                // 如果找到答案，处理它们
+                if (tempAnswers.length > 0) {
+                  // 获取最小题号作为起始题号
+                  const startNum = Math.min(...tempAnswers.map(a => a.num));
+                  // 处理答案
+                  this.processAnswers(section.type, startNum, section.score, tempAnswers, section.chineseNum);
+                  console.log(`为题型 ${this.getTypeName(section.type)} 创建了 ${tempAnswers.length} 个答案`);
                 }
               }
               
@@ -739,7 +744,8 @@ export default {
       console.log('处理答案行:', line);
       
       // 修改正则表达式，使用前瞻断言确保只在下一个题号前停止匹配
-      const multiAnswersPattern = /(\d+)[.．、:：]\s*([^]*?)(?=\s*\d+[.．、:：]|$|\s*,\s*\d+[.．、:：])/g;
+      // 使用\b边界匹配和负向后顾断言(?<!\.)，确保不匹配小数点后的数字
+      const multiAnswersPattern = /(?:^|\s)(?<!\.)(\d+)[.．、:：]\s*([^]*?)(?=\s*(?:^|\s)(?<!\.)\d+[.．、:：]|$|\s*,\s*(?:^|\s)(?<!\.)\d+[.．、:：])/g;
       let match;
       let hasMatches = false;
       
@@ -759,7 +765,8 @@ export default {
       if (!hasMatches) {
         // 使用更精确的正则表达式，严格匹配数字题号
         // 这个模式会匹配数字题号，然后捕获所有内容直到下一个数字题号或行尾
-        const answerPattern = /(\d+)[.．、:：]\s*([^]*?)(?=\s+\d+[.．、:：]|$)/g;
+        // 增加前置边界条件，确保只匹配行首或空白字符后的数字作为题号
+        const answerPattern = /(?:^|\s)(\d+)[.．、:：]\s*([^]*?)(?=\s+(?:^|\s)\d+[.．、:：]|$)/g;
         
         // 重置正则表达式
         answerPattern.lastIndex = 0;
@@ -798,21 +805,26 @@ export default {
       // 更新起始题号
       startNum = actualStartNum;      
 
-      // 始终创建新的题型区域，不再查找已存在的相同题型
-      // 这样可以确保多个相同题型（如多个填空题）都能正确显示
-      const targetSection = {
-        type: type,
-        startNum: startNum,
-        score: validScore, // 使用验证后的分数
-        chineseNumber: chineseNum || '', // 设置中文题号，如果没有则为空字符串
-        questions: []
-      };
-      console.log(`创建题型区域，设置中文题号: ${chineseNum || '未指定'}`);
-      this.questionSections.push(targetSection);
+      // 检查是否已存在相同的题型区域
+      let targetSection = this.questionSections.find(section => 
+        section.type === type && 
+        section.chineseNumber === (chineseNum || '')
+      );
+
+      // 如果不存在相同的题型区域，则创建新的
+      if (!targetSection) {
+        targetSection = {
+          type: type,
+          startNum: startNum,
+          score: validScore, // 使用验证后的分数
+          chineseNumber: chineseNum || '', // 设置中文题号，如果没有则为空字符串
+          questions: []
+        };
+        console.log(`创建题型区域，设置中文题号: ${chineseNum || '未指定'}`);
+        this.questionSections.push(targetSection);
+      }
       console.log(`创建新题型区域: ${type}, 起始题号: ${startNum}`);
       
-      // 输出当前题目数量
-      console.log(`处理前题目数量: ${targetSection.questions.length}`);
       
       // 清空所有已有题目并重建
       // 这样可以确保每个题号都有单独的答案框
@@ -947,6 +959,10 @@ export default {
   background-color: #F56C6C;
 }
 
+.type-essay {
+  background-color: #409EFF;
+}
+
 .section-score {
   display: flex;
   align-items: center;
@@ -987,6 +1003,12 @@ export default {
 .judgment-select {
   width: 80px;
   margin-left: 5px;
+}
+
+.essay-input {
+  width: 700px;
+  margin-left: 5px;
+  height: 120px;
 }
 
 .add-question {

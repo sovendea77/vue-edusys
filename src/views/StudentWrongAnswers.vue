@@ -149,6 +149,8 @@ export default {
           return 'type-fill';
         } else if (sectionType === 'judgment' || sectionType.includes('判断')) {
           return 'type-judgment';
+        } else if (sectionType === 'essay' || sectionType.includes('解答')) {
+          return 'type-essay';
         }
       }
       return '';
@@ -165,6 +167,8 @@ export default {
           return '填空题';
         } else if (sectionType === 'judgment' || sectionType.includes('判断')) {
           return '判断题';
+        } else if (sectionType === 'essay' || sectionType.includes('解答')) {
+          return '解答题';
         }
         return wrongAnswer.section_type;
       }
@@ -263,6 +267,10 @@ export default {
   background-color: #F56C6C;
 }
 
+.type-essay {
+  background-color: #409EFF;
+}
+
 .question-content {
   margin-bottom: 15px;
   padding: 10px;
@@ -312,5 +320,19 @@ export default {
   font-size: 14px;
   color: #606266;
   line-height: 1.6;
+}
+
+/* 解答题样式 */
+.essay-answer-container {
+  width: 100%;
+}
+
+.essay-answer {
+  margin-top: 5px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  line-height: 1.6;
+  width: 100%;
 }
 </style>

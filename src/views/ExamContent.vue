@@ -37,17 +37,31 @@
             </div>
             
             <div class="questions-container">
-              <div v-for="(question, qIndex) in section.questions" :key="qIndex" class="question-item">
+              <div v-for="(question, qIndex) in section.questions" :key="qIndex" class="question-item" :class="{'essay-question-item': section.type === 'essay'}">
                 {{ section.startNum + qIndex }}. 
+                <!-- 解答题使用多行文本框 -->
                 <el-input 
+                  v-if="section.type === 'essay'"
+                  v-model="question.answer" 
+                  :placeholder="getPlaceholder(section.type)" 
+                  type="textarea"
+                  :rows="4"
+                  resize="none"
+                  class="essay-input"
+                  :disabled="!isEditing"
+                ></el-input>
+                
+                <!-- 其他题型使用普通输入框 -->
+                <el-input 
+                  v-else-if="section.type !== 'judgment'"
                   v-model="question.answer" 
                   :placeholder="getPlaceholder(section.type)" 
                   class="answer-input"
                   size="small"
-                  :class="{'judgment-input': section.type === 'judgment'}"
                   :disabled="!isEditing"
                 ></el-input>
                 
+                <!-- 判断题使用下拉选择框 -->
                 <el-select 
                   v-if="section.type === 'judgment'" 
                   v-model="question.answer" 
@@ -911,7 +925,8 @@ export default {
       return {
         'type-choice': type === 'choice',
         'type-fill': type === 'fill',
-        'type-judgment': type === 'judgment'
+        'type-judgment': type === 'judgment',
+        'type-essay': type === 'essay'
       };
     },
     // 获取题目类型名称
@@ -919,7 +934,8 @@ export default {
       const typeMap = {
         'choice': '选择题',
         'fill': '填空题',
-        'judgment': '判断题'
+        'judgment': '判断题',
+        'essay': '解答题'
       };
       return typeMap[type] || '未知题型';
     },
@@ -928,7 +944,8 @@ export default {
       const placeholderMap = {
         'choice': '请输入选项（如：A）',
         'fill': '请输入答案',
-        'judgment': '请选择（对/错）'
+        'judgment': '请选择（对/错）',
+        'essay': '请输入解答过程'
       };
       return placeholderMap[type] || '请输入答案';
     },
@@ -1216,6 +1233,10 @@ export default {
   background-color: #F56C6C;
 }
 
+.type-essay {
+  background-color: #409EFF;
+}
+
 .section-score {
   margin-left: 5px;
 }
@@ -1246,6 +1267,19 @@ export default {
 .judgment-select {
   width: 80px;
   margin-left: 5px;
+}
+
+.essay-question-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.essay-input {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .action-buttons {

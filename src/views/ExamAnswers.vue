@@ -17,20 +17,27 @@
           <div class="section-type-badge" :class="{
             'type-choice': group[0].section_type === 'choice',
             'type-fill': group[0].section_type === 'fill',
-            'type-judgment': group[0].section_type === 'judgment'
+            'type-judgment': group[0].section_type === 'judgment',
+            'type-essay': group[0].section_type === 'essay'
           }">
             {{ group[0].chinese_number || getChineseNumber(groupIndex + 1) }}、
             {{ group[0].section_type === 'choice' ? '选择题' : 
                group[0].section_type === 'fill' ? '填空题' : 
-               group[0].section_type === 'judgment' ? '判断题' : '未知题型' }}
+               group[0].section_type === 'judgment' ? '判断题' : 
+               group[0].section_type === 'essay' ? '解答题' : '未知题型' }}
             <span class="section-score">{{ group[0].score }}分</span>
           </div>
         </div>
         
         <div class="questions-list">
-          <div v-for="question in group" :key="question.id" class="question-item">
+          <div v-for="question in group" :key="question.id" class="question-item" :class="{'essay-question-item': question.section_type === 'essay'}">
             <span class="question-number">{{ question.question_number }}.</span>
-            <span class="question-answer" :class="{
+            <!-- 解答题答案 -->
+            <div v-if="question.section_type === 'essay'" class="essay-answer">
+              <span>{{ question.answer }}</span>
+            </div>
+            <!-- 其他题型答案 -->
+            <span v-else class="question-answer" :class="{
               'judgment-true': question.section_type === 'judgment' && question.answer === '对', 
               'judgment-false': question.section_type === 'judgment' && question.answer === '错'
             }">{{ question.answer }}</span>
@@ -148,6 +155,10 @@ export default {
     // 判断题列表（兼容旧代码）
     judgmentQuestions() {
       return this.answers.filter(answer => answer.section_type === 'judgment');
+    },
+    // 解答题列表
+    essayQuestions() {
+      return this.answers.filter(answer => answer.section_type === 'essay');
     }
   },
   methods: {
@@ -209,6 +220,8 @@ export default {
         return this.choiceQuestions.length > 0;
       } else if (type === 'judgment') {
         return this.choiceQuestions.length > 0 || this.fillQuestions.length > 0;
+      } else if (type === 'essay') {
+        return this.choiceQuestions.length > 0 || this.fillQuestions.length > 0 || this.judgmentQuestions.length > 0;
       }
       return false;
     },
@@ -220,6 +233,10 @@ export default {
       } else if (type === 'judgment') {
         if (this.choiceQuestions.length > 0) index++;
         if (this.fillQuestions.length > 0) index++;
+      } else if (type === 'essay') {
+        if (this.choiceQuestions.length > 0) index++;
+        if (this.fillQuestions.length > 0) index++;
+        if (this.judgmentQuestions.length > 0) index++;
       }
       return index;
     },
@@ -359,6 +376,10 @@ export default {
   background-color: #F56C6C;
 }
 
+.type-essay {
+  background-color: #409EFF;
+}
+
 .section-score {
   margin-left: 5px;
   font-size: 0.9em;
@@ -392,6 +413,24 @@ export default {
 
 .judgment-false {
   color: #F56C6C;
+}
+
+.essay-question-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.essay-answer {
+  margin-top: 10px;
+  width: 100%;
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  padding: 10px;
+  color: #409EFF;
+  font-weight: bold;
 }
 
 .statistics-section {
