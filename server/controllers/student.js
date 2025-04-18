@@ -527,11 +527,12 @@ const studentController = {
         .where({
           exam_id: examId,
           student_id: studentId,
-          id: questionId
+          question_id: questionId
         })
         .first();
 
       if (!existingRecord) {
+        console.log(2222);
         return res.status(404).json({ 
           success: false, 
           message: '未找到对应的错题记录',
