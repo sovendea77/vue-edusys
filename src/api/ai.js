@@ -269,9 +269,9 @@ export const aiApi = {
           }
         ];
         
-        // 调用deepseek-R1模型
+        // 调用deepseek-V3模型
         const response = await axios.post(ARK_API_URL, {
-          model: DEEPSEEK_R1_MODEL_ID,
+          model: DEEPSEEK_MODEL_ID,
           stream: false,
           messages: messages
         }, {
@@ -292,5 +292,67 @@ export const aiApi = {
         console.error('AI分析API调用失败:', error);
         throw error;
       }
+    },
+  /**
+   * AI批改解答题
+   * @param {Object} gradeData - 批改数据
+   * @param {string} gradeData.studentAnswer - 学生答案
+   * @param {string} gradeData.standardAnswer - 标准答案
+   * @param {number} gradeData.totalScore - 题目总分
+   * @returns {Promise<number>} - 返回AI评分结果
+   */
+  gradeEssayQuestionWithDeepseek: async (gradeData) => {
+    try {
+      const { studentAnswer, standardAnswer, totalScore } = gradeData;
+      
+      // 构建提示文本
+      const promptText = `
+请根据标准答案对学生的解答题答案进行评分。
+标准答案：${standardAnswer}
+学生答案：${studentAnswer}
+总分：${totalScore}分
+
+请仅返回一个数字，表示学生获得的分数（0-${totalScore}之间的数字，不可以有小数）。不要包含任何其他文字或解释。`;
+      
+      // 构建消息
+      const messages = [
+        {
+          role: "system",
+          content: "你是一位专业的教育评分者，根据标准答案对学生的解答题答案进行客观评分。请只返回分数，不要有任何其他文字。"
+        },
+        {
+          role: "user",
+          content: promptText
+        }
+      ];
+
+      const response = await axios.post(ARK_API_URL, {
+        model: DEEPSEEK_MODEL_ID,
+        stream: false,
+        messages: messages
+      }, {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${ARK_API_KEY}`
+        }
+      });
+      console.log(response.data);
+      // 提取分数
+      let scoreText = response.data.choices[0].message.content.trim();
+      const scoreMatch = scoreText.match(/(\d+(\.\d+)?)/);
+      if (scoreMatch) {
+        scoreText = scoreMatch[0];
+      }
+      // 转换为数字
+      const score = parseFloat(scoreText);
+      
+      // 确保分数在有效范围内
+      const validScore = Math.min(Math.max(0, score), totalScore);
+      
+      return validScore;
+    } catch (error) {
+      console.error('AI批改失败:', error);
+      throw error;
     }
+  }
 };

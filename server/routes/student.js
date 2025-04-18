@@ -24,4 +24,9 @@ router.get('/wrong-answers/:examId/:studentId', studentController.getStudentWron
 // 获取错题分析数据
 router.get('/wrong-answers-analysis/:examId', studentController.getWrongAnswersAnalysis);
 
+// 更新解答题评分
+router.post('/essay-score', studentController.updateEssayQuestionScore);
+
+
+
 module.exports = router;

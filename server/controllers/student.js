@@ -87,12 +87,14 @@ const studentController = {
         .select(
           'swa.id',
           'swa.student_answer',
+          'swa.question_id',
           'swa.is_corrected',
           'qa.question_number',
           'qa.chinese_number',
           'qa.content',
           'qa.answer as correct_answer',
-          'qa.section_type'
+          'qa.section_type',
+          'qa.score' 
         )
         .join('question_answers as qa', 'swa.question_id', 'qa.id')
         .where({
@@ -485,6 +487,131 @@ const studentController = {
     } catch (error) {
       console.error('获取错题分析数据失败:', error);
       res.status(500).json({ success: false, message: '获取错题分析数据失败: ' + error.message });
+    }
+  },
+  
+  // 更新解答题评分
+  updateEssayQuestionScore: async (req, res) => {
+    try {
+      const examId = req.params.examId || req.body.examId;
+      const studentId = req.params.studentId || req.body.studentId;
+      const questionId = req.params.questionId || req.body.questionId;
+      const score = req.body.score;
+      
+      if (!examId || !studentId || !questionId || score === undefined) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '缺少必要参数',
+          receivedParams: { examId, studentId, questionId, score }
+        });
+      }
+      
+      // 查询满分值
+      const questionInfo = await db('question_answers')
+        .where('id', questionId)
+        .first();
+      console.log(questionInfo);
+      if (!questionInfo) {
+        return res.status(404).json({ 
+          success: false, 
+          message: '未找到对应的题目',
+          questionId
+        });
+      }
+      
+      // 获取题目满分
+      const fullScore = questionInfo.score || 0;
+      
+      // 查询数据库中该学生的错题记录
+      const existingRecord = await db('student_wrong_answers')
+        .where({
+          exam_id: examId,
+          student_id: studentId,
+          id: questionId
+        })
+        .first();
+
+      if (!existingRecord) {
+        return res.status(404).json({ 
+          success: false, 
+          message: '未找到对应的错题记录',
+          searchParams: { examId, studentId, questionId }
+        });
+      }
+      
+      // 判断是否为满分
+      const isFullScore = parseFloat(score) >= parseFloat(fullScore);
+      
+      await db('student_wrong_answers')
+        .where({
+          exam_id: examId,
+          student_id: studentId,
+          id: questionId
+        })
+        .update({ 
+          is_corrected: isFullScore ? 1 : 0,  
+          score: parseFloat(score)
+        });
+      
+      // 获取当前学生的总分
+      const currentGrade = await db('student_grade')
+        .where({
+          exam_id: examId,
+          student_name: studentId
+        })
+        .first();
+      
+      // 获取考试的总分
+      const examInfo = await db('exams')
+        .where('id', examId)
+        .first();
+      
+      // 计算新的总分
+      let totalScore = 0;
+      if (currentGrade) {
+        if (existingRecord.score) {
+          totalScore = parseFloat(currentGrade.score) - parseFloat(existingRecord.score) + parseFloat(score);
+        } else {
+          totalScore = parseFloat(currentGrade.score) + parseFloat(score);
+        }
+      } else {
+        totalScore = parseFloat(score);
+      }
+      console.log('学生新的总分:', totalScore);
+      
+      // 更新student_grade表中的学生总分
+      if (currentGrade) {
+        // 更新现有成绩记录
+        await db('student_grade')
+          .where({
+            exam_id: examId,
+            student_name: studentId
+          })
+          .update({ score: totalScore });
+      } else {
+
+        await db('student_grade').insert({
+          student_name: studentId,
+          exam_id: examId,
+          score: totalScore
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: '评分更新成功',
+        updatedRecord: {
+          examId,
+          studentId,
+          questionId,
+          score,
+          isFullScore,
+          totalScore
+        }
+      });
+    } catch (error) {
+      console.error('更新解答题评分失败:', error);
+      res.status(500).json({ success: false, message: '更新解答题评分失败: ' + error.message });
     }
   }
 };

@@ -42,5 +42,19 @@ export const studentApi = {
   // 获取错题分析数据（按错误次数排序）
   getWrongAnswersAnalysis: (examId, minErrorCount = 1) => {
     return axios.get(`${API_BASE_URL}/students/wrong-answers-analysis/${examId}?minErrorCount=${minErrorCount}`);
+  },
+  
+  // 更新学生解答题分数
+  updateEssayQuestionScore: (examId, studentId, questionId, score) => {
+    const validQuestionId = questionId || 'default';
+    
+    console.log('更新解答题分数 - 参数:', { examId, studentId, questionId: validQuestionId, score });
+    
+    return axios.post(`${API_BASE_URL}/students/essay-score`, {
+      examId,
+      studentId,
+      questionId: validQuestionId,
+      score
+    });
   }
 };

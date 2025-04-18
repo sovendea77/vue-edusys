@@ -61,3 +61,6 @@ CREATE TABLE IF NOT EXISTS `student_grade` (
 CREATE INDEX idx_question_answers_exam_id ON question_answers(exam_id);
 CREATE INDEX idx_question_answers_section_index ON question_answers(section_index);
 CREATE INDEX idx_question_answers_chinese_number ON question_answers(chinese_number);
+
+ALTER TABLE `student_wrong_answers` 
+ADD COLUMN `score` DECIMAL(5,2) DEFAULT 0 COMMENT '学生得分';

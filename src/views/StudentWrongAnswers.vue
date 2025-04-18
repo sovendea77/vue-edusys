@@ -45,6 +45,55 @@
             <span class="correct-answer">{{ wrongAnswer.correct_answer }}</span>
           </div>
           
+          <div v-if="isEssayQuestion(wrongAnswer.chinese_number)" class="essay-grading-section">
+            <div class="grading-buttons">
+              <el-button 
+                type="warning" 
+                size="small" 
+                icon="el-icon-edit"
+                :loading="wrongAnswer.aiGrading"
+                @click="gradeEssayWithAI(wrongAnswer)"
+              >
+                AI批改
+              </el-button>
+              
+              <el-button 
+                type="primary" 
+                size="small" 
+                icon="el-icon-user"
+                @click="showManualGrading(wrongAnswer)"
+              >
+                手动批改
+              </el-button>
+            </div>
+            
+            <div v-if="wrongAnswer.aiGradeResult !== undefined" class="ai-grade-result">
+              <span class="grade-label">AI评分:</span>
+              <span class="grade-score">{{ wrongAnswer.aiGradeResult }}分</span>
+              <el-button 
+                type="success" 
+                size="mini" 
+                @click="saveEssayGrade(wrongAnswer, wrongAnswer.aiGradeResult)"
+                :disabled="wrongAnswer.gradeSaved"
+              >
+                {{ wrongAnswer.gradeSaved ? '已保存' : '保存评分' }}
+              </el-button>
+            </div>
+            
+            <div v-if="wrongAnswer.manualGradeResult !== undefined" class="manual-grade-result">
+              <span class="grade-label">教师评分:</span>
+              <span class="grade-score">{{ wrongAnswer.manualGradeResult }}分</span>
+              <el-button 
+                type="success" 
+                size="mini" 
+                @click="saveEssayGrade(wrongAnswer, wrongAnswer.manualGradeResult)"
+                :disabled="wrongAnswer.gradeSaved"
+              >
+                {{ wrongAnswer.gradeSaved ? '已保存' : '保存评分' }}
+              </el-button>
+            </div>
+          </div>
+          
           <div class="ai-analysis-section">
             <el-button 
               type="primary" 
@@ -67,7 +116,58 @@
         </div>
       </el-card>
     </div>
+  <el-dialog
+    title="教师手动批改"
+    :visible.sync="manualGradingDialogVisible"
+    width="500px"
+  >
+    <div v-if="currentGradingQuestion" class="manual-grading-dialog">
+      <div class="question-info">
+        <div class="info-item">
+          <span class="info-label">题目:</span>
+          <span>{{ currentGradingQuestion.chinese_number }}、{{ currentGradingQuestion.question_number }}.</span>
+        </div>
+        
+        <div class="info-item" v-if="currentGradingQuestion.content">
+          <span class="info-label">题目内容:</span>
+          <div class="info-content">{{ currentGradingQuestion.content }}</div>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">标准答案:</span>
+          <div class="info-content">{{ currentGradingQuestion.correct_answer }}</div>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">学生答案:</span>
+          <div class="info-content">{{ currentGradingQuestion.student_answer || '未作答' }}</div>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">总分:</span>
+          <span>{{ currentGradingQuestion.score || 10 }}分</span>
+        </div>
+      </div>
+      
+      <div class="score-input">
+        <span class="score-label">评分:</span>
+        <el-input-number 
+          v-model="manualScore" 
+          :min="0" 
+          :max="currentGradingQuestion.score || 10" 
+          :step="1"
+          size="small"
+        ></el-input-number>
+      </div>
+    </div>
+    
+    <span slot="footer" class="dialog-footer">
+      <el-button @click="manualGradingDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="submitManualGrading">确定</el-button>
+    </span>
+  </el-dialog>
   </div>
+  
 </template>
 
 <script>
@@ -83,7 +183,10 @@ export default {
       studentName: '',
       wrongAnswers: [],
       loading: true,
-      error: null
+      error: null,
+      manualGradingDialogVisible: false,
+      currentGradingQuestion: null,
+      manualScore: 0
     };
   },
   methods: {
@@ -97,6 +200,12 @@ export default {
           if (response.data.success) {
             this.wrongAnswers = response.data.data;
             console.log('获取到的错题详情:', this.wrongAnswers);
+            
+            // 检查每个错题是否有question_id
+            this.wrongAnswers.forEach(wrongAnswer => {
+              if (!wrongAnswer.question_id) {
+              }
+            });
           } else {
             throw new Error(response.data.message || '获取错题详情失败');
           }
@@ -173,6 +282,103 @@ export default {
         return wrongAnswer.section_type;
       }
       return '未知题型';
+    },
+    
+    // 判断是否为解答题
+    isEssayQuestion(chineseNumber) {
+      const wrongAnswer = this.wrongAnswers.find(item => item.chinese_number === chineseNumber);
+      if (wrongAnswer && wrongAnswer.section_type) {
+        const sectionType = wrongAnswer.section_type.toLowerCase();
+        return sectionType === 'essay' || sectionType.includes('解答');
+      }
+      return false;
+    },
+    
+    // AI批改解答题
+    async gradeEssayWithAI(wrongAnswer) {
+      if (wrongAnswer.aiGrading) return;
+      this.$set(wrongAnswer, 'aiGrading', true);
+      
+      try {
+        const gradeData = {
+          studentAnswer: wrongAnswer.student_answer || '未作答',
+          standardAnswer: wrongAnswer.correct_answer,
+          totalScore: wrongAnswer.question_score || wrongAnswer.score || 10 // 使用题目实际分值
+        };
+
+        // 调用AI
+        const score = await aiApi.gradeEssayQuestionWithDeepseek(gradeData);
+        
+        // 更新UI显示
+        this.$set(wrongAnswer, 'aiGradeResult', score);
+        this.$set(wrongAnswer, 'gradeSaved', false);
+        this.$message.success('AI批改完成');
+      } catch (error) {
+        console.error('AI批改失败:', error);
+        this.$message.error('AI批改失败: ' + (error.message || '未知错误'));
+      } finally {
+        this.$set(wrongAnswer, 'aiGrading', false);
+      }
+    },
+    
+    // 显示手动批改对话框
+    showManualGrading(wrongAnswer) {
+      this.currentGradingQuestion = wrongAnswer;
+      console.log(this.currentGradingQuestion);
+      this.manualScore = wrongAnswer.manualGradeResult || 0;
+      this.manualGradingDialogVisible = true;
+    },
+    
+    // 提交手动批改
+    submitManualGrading() {
+      if (!this.currentGradingQuestion) return;
+      
+      // 验证分数范围
+      const totalScore = this.currentGradingQuestion.score || 10;
+      if (this.manualScore < 0 || this.manualScore > totalScore) {
+        this.$message.error(`分数必须在0-${totalScore}分之间`);
+        return;
+      }
+      
+      // 更新UI显示
+      this.$set(this.currentGradingQuestion, 'manualGradeResult', this.manualScore);
+      this.$set(this.currentGradingQuestion, 'gradeSaved', false);
+      
+      this.manualGradingDialogVisible = false;
+      this.$message.success('教师评分已设置');
+    },
+    
+    // 保存解答题评分
+    async saveEssayGrade(wrongAnswer, score) {
+      try {
+        const questionId = wrongAnswer.question_id || wrongAnswer.id;
+        
+        // 如果没有有效的questionId
+        if (!questionId) {
+          console.error('错误: 无法获取题目ID', wrongAnswer);
+          this.$message.error('保存评分失败: 无法获取题目ID');
+          return;
+        }
+        
+        console.log('保存评分 - 使用的questionId:', questionId);
+        
+        const response = await studentApi.updateEssayQuestionScore(
+          this.examId,
+          this.studentId,
+          questionId,
+          score
+        );
+        
+        if (response.data.success) {
+          this.$set(wrongAnswer, 'gradeSaved', true);
+          this.$message.success('评分已保存到数据库');
+        } else {
+          throw new Error(response.data.message || '保存评分失败');
+        }
+      } catch (error) {
+        console.error('保存评分失败:', error);
+        this.$message.error('保存评分失败: ' + (error.message || '未知错误'));
+      }
     }
   },
   created() {
@@ -190,7 +396,7 @@ export default {
     // 获取错题详情
     this.fetchWrongAnswers();
   }
-  };
+};
 </script>
 
 <style scoped>
@@ -334,5 +540,87 @@ export default {
   border-radius: 4px;
   line-height: 1.6;
   width: 100%;
+}
+
+.essay-grading-section {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.ai-grade-result {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.grade-label {
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.grade-score {
+  color: #E6A23C;
+  font-size: 16px;
+  font-weight: bold;
+  margin-right: 15px;
+}
+
+.grading-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.manual-grade-result {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #ecf5ff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.manual-grading-dialog {
+  padding: 10px;
+}
+
+.question-info {
+  margin-bottom: 20px;
+}
+
+.info-item {
+  margin-bottom: 10px;
+}
+
+.info-label {
+  font-weight: bold;
+  margin-right: 8px;
+  color: #606266;
+}
+
+.info-content {
+  margin-top: 5px;
+  padding: 8px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.score-input {
+  display: flex;
+  align-items: center;
+  margin-top: 15px;
+}
+
+.score-label {
+  font-weight: bold;
+  margin-right: 15px;
+  color: #606266;
 }
 </style>
