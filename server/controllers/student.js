@@ -17,9 +17,9 @@ const isAnswerMatched = (studentAnswer, standardAnswer) => {
   if (cleanStudentAnswer === cleanStandardAnswer) return true;
   
   // 模糊匹配逻辑
-  // 1. 处理判断题答案，支持√、×、对、错、true、false等多种表达方式
-  const trueAnswers = ['√', '对', 'true', 't', '1', 'yes', 'y'];
-  const falseAnswers = ['×', '错', 'false', 'f', '0', 'no', 'n'];
+  // 1. 处理判断题答案，支持√、×、✓、✗、对、错、true、false等多种表达方式
+  const trueAnswers = ['√', '✓', '对', 'true', 't', '1', 'yes', 'y'];
+  const falseAnswers = ['×', '✗', '错', 'false', 'f', '0', 'no', 'n'];
   
   if (trueAnswers.includes(cleanStudentAnswer)) {
     return trueAnswers.includes(cleanStandardAnswer);

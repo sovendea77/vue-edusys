@@ -6,12 +6,12 @@ import axios from 'axios';
 
 // API基础URL和密钥
 const ARK_API_KEY = "ef368e0b-4512-41c2-a2c0-4efa63906f6d";
-const ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/bots/chat/completions";
+const ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
 // 模型ID
-const DOUBAO_MODEL_ID = "bot-20250322162347-lxgsm"; // doubao-1.5-vision-pro-32k
-const DEEPSEEK_MODEL_ID = "bot-20250322162759-bmj22"; // deepseek-V3
-const DEEPSEEK_R1_MODEL_ID = "bot-20250322191644-rrtvm"; // deepseek-R1
+const DOUBAO_MODEL_ID = "doubao-1.5-vision-pro-250328"; // doubao-1.5-vision-pro-32k
+const DEEPSEEK_MODEL_ID = "deepseek-v3-250324"; // deepseek-V3
+const DEEPSEEK_R1_MODEL_ID = "deepseek-r1-250120"; // deepseek-R1
 
 export const aiApi = {
   /**
@@ -41,7 +41,12 @@ export const aiApi = {
         content: [
           {
             type: "text",
-            text: ""
+            text: `对于该图片内的所有题目，若没有附图，则完整给出题干以及相关选项（若有的话）；若带有附图则需要你给出题干的同时对附图做尽可能详细的，对解题有帮助的描述（我需要单看描述和题干就能解出题目）。描述应该标注在题干后面。不需要给出任何题包括选择填空判断解答题的答案（包括√和×）。按根据试卷的题目排版顺序给出。如
+                  一、选择题（每小题分数）：
+                  （识别到的题号）.(题目...);（识别到的题号）.(题目...); ...  
+                  二、填空题（每小题分数）：...
+                  三、判断题（每小题分数）：...
+                  四、解答题（每小题分数）：...`
           },
           ...base64Images.map(base64 => ({
             type: "image_url",
@@ -82,7 +87,16 @@ export const aiApi = {
     const messages = [
       {
         role: "system",
-        content: ""
+        content: `这是一篇试卷的题目，请你联网查询题目答案，若无相关结果则请你理解每道题讲的是什么，然后分析给出每道题的正确答案（只需要答案），需要严格按格式打印出来，不需要分析过程，重点：生成的格式填写的必须只能是“选择题”，“填空题”，“判断题”，“解答题”，试卷的题型如果不属于这四种，需要你强行归类进这四种题目，判断不出就统一作为解答题生成。格式如下：
+                  (中文题号)、选择题（每小题分数）
+                  1.A
+                  2.B...（每小题要换行，答案必须是选项）
+                  (中文题号)、填空题（每小题分数）
+                  ...
+                  (中文题号)、判断题（每小题分数）
+                  ...（判断题的答案只有“对”和“错”）
+                  (中文题号)、解答题（每小题分数）
+                  ...（解答题每小题不需要换行，只有解答题需要答题过程）`
       },
       {
         role: "user",
@@ -246,16 +260,16 @@ export const aiApi = {
     analyzeWrongAnswerWithDeepseekR1: async (analysisData) => {
       try {
         const prompt = `请分析以下学生的错题并给出详细的解释：
-    题目类型：${analysisData.questionType}
-    题目内容：${analysisData.questionContent || '无题目内容'}
-    正确答案：${analysisData.correctAnswer}
-    学生答案：${analysisData.studentAnswer}
-    请从以下几个方面进行分析：
-    1. 错误原因分析
-    2. 知识点提示,回答格式为： 
-    1. 题目解析
-    2. 错误原因分析
-    3. 知识点提示，字数在400字左右`;
+                        题目类型：${analysisData.questionType}
+                        题目内容：${analysisData.questionContent || '无题目内容'}
+                        正确答案：${analysisData.correctAnswer}
+                        学生答案：${analysisData.studentAnswer}
+                        请从以下几个方面进行分析：
+                        1. 错误原因分析
+                        2. 知识点提示,回答格式为： 
+                        1. 题目解析
+                        2. 错误原因分析
+                        3. 知识点提示，字数在400字左右`;
         console.log(prompt);
     // 构建消息
         const messages = [

@@ -59,24 +59,16 @@ url[String]：必选，支持传入图片链接或图片的Base64编码，不同
 
 
 以下是调用deepseek-V3的api的例子：
-curl 'https://ark.cn-beijing.volces.com/api/v3/bots/chat/completions' \
--H "Authorization: Bearer $ARK_API_KEY"  \
--H 'Content-Type: application/json' \
--d '{
-    "model": "bot-20250322162759-bmj22", 
-    "stream": true,
-    "stream_options": {"include_usage": true},
-    "messages": [ 
-        {
-            "role": "system",
-            "content": "You are a helpful assistant."
-        },
-        {
-            "role": "user",
-            "content": "Hello!"
-        }
+curl https://ark.cn-beijing.volces.com/api/v3/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ARK_API_KEY" \
+  -d '{
+    "model": "deepseek-v3-250324",
+    "messages": [
+      {"role": "system","content": "你是人工智能助手."},
+      {"role": "user","content": "常见的十字花科植物有哪些？"}
     ]
-}'
+  }'
 
 
 
