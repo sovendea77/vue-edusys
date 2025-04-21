@@ -1,6 +1,6 @@
 <template>
   <div class="exam-content-container">
-    <h1 class="system-title">多模态试卷自动批改系统</h1>
+    <h1 class="system-title">多模态试卷自动勘误辅导系统</h1>
     
     <div v-if="loading" class="loading-state">
       <el-skeleton :rows="5" animated />

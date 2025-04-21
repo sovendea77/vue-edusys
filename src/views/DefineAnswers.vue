@@ -1,6 +1,6 @@
 <template>
   <div class="homework-system">
-    <h1 class="system-title">多模态试卷自动批改系统</h1>
+    <h1 class="system-title">多模态试卷自动勘误辅导系统</h1>
     
     <div class="answer-definition-section">
       <h2>请完成答案定义</h2>

@@ -4,7 +4,7 @@
       <el-header>
         <div class="header-container">
           <div class="logo">
-            <span>多模态试卷自动批改系统</span>
+            <span>多模态试卷自动勘误辅导系统</span>
           </div>
           <div class="user-info">
             <span v-if="userInfo">{{ userInfo.name }}</span>

@@ -2,7 +2,7 @@
   <div class="login-container">
     <el-card class="login-card">
       <div slot="header" class="header">
-        <h2>多模态试卷自动批改系统登录</h2>
+        <h2>多模态试卷自动勘误辅导系统</h2>
       </div>
       <el-form :model="loginForm" :rules="loginRules" ref="loginForm" label-width="80px">
         <el-form-item label="角色" prop="role">

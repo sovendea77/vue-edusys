@@ -1,6 +1,6 @@
 <template>
   <div class="exam-list-container">
-    <h1 class="system-title">多模态试卷自动批改系统</h1>
+    <h1 class="system-title">多模态试卷自动勘误辅导系统</h1>
     
     <div class="exam-list-section">
       <h2>考试记录</h2>
