@@ -52,7 +52,7 @@ const router = new Router({
       meta: { title: '考试答案', requiresAuth: true }
     },
     {
-      path: '/exam-content',
+      path: '/exam/:examId/content',
       name: 'ExamContent',
       component: ExamContent,
       meta: { title: '考试内容', requiresAuth: true }

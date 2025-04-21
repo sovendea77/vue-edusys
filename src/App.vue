@@ -40,10 +40,6 @@
               <i class="el-icon-edit-outline"></i>
               <span slot="title">创建考试</span>
             </el-menu-item>
-            <el-menu-item index="/exam-content">
-              <i class="el-icon-document"></i>
-              <span slot="title">考试内容</span>
-            </el-menu-item>
             <el-menu-item index="/ai-analysis">
               <i class="el-icon-data-analysis"></i>
               <span slot="title">AI错题分析</span>

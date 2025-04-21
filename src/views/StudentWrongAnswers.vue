@@ -345,7 +345,18 @@ export default {
     },
     // 返回上一页
     goBack() {
-      this.$router.push('/exam-content');
+      // 获取当前考试ID
+      const examId = this.examId;
+      
+      if (examId) {
+        // 如果有考试ID，返回到该考试的答案页面
+        this.$router.push({
+          path: `/exam/${examId}/answers`
+        });
+      } else {
+        // 如果没有考试ID，返回到首页
+        this.$router.push('/');
+      }
     },
     // 获取题目类型样式类
     getTypeClass(chineseNumber) {

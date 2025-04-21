@@ -823,7 +823,78 @@ export default {
     // 获取最新考试
     fetchLatestExam() {
       this.loading = true;
+      // 检查路由参数中是否有考试ID
+      const examId = this.$route.params.examId;
       
+      if (examId) {
+        // 如果路由中有考试ID，直接获取该考试
+        examApi.getExamById(examId)
+          .then(response => {
+            if (response.data.success) {
+              this.latestExam = response.data.data;
+              
+              // 获取该考试的答案
+              return examApi.getAnswers(this.latestExam.id);
+            } else {
+              throw new Error(response.data.message || '获取考试详情失败');
+            }
+          })
+          .then(response => {
+            if (response && response.data.success && response.data.data && response.data.data.length > 0) {
+              // 处理返回的答案数据，重建questionSections
+              const answers = response.data.data;
+              const sectionMap = new Map();
+              answers.forEach(answer => {
+                const sectionIndex = answer.section_index - 1;
+                const questionNumber = answer.question_number;
+              
+                if (!sectionMap.has(sectionIndex)) {
+                  sectionMap.set(sectionIndex, {
+                    type: answer.section_type,
+                    startNum: questionNumber, // 暂时设置，后面会更新
+                    score: answer.score,
+                    questions: []
+                  });
+                }
+              
+                const section = sectionMap.get(sectionIndex);
+                // 更新起始题号（取最小值）
+                section.startNum = Math.min(section.startNum, questionNumber);
+              
+                // 添加问题
+                const questionIndex = questionNumber - section.startNum;
+                while (section.questions.length <= questionIndex) {
+                  section.questions.push({ answer: '' });
+                }
+                section.questions[questionIndex].answer = answer.answer;
+              });
+            
+              // 转换Map为数组
+              this.questionSections = Array.from(sectionMap.values());
+            
+              // 从答案数据中提取中文题号
+              answers.forEach(answer => {
+                if (answer.chinese_number) {
+                  const sectionIndex = answer.section_index - 1;
+                  if (sectionIndex >= 0 && sectionIndex < this.questionSections.length) {
+                    this.questionSections[sectionIndex].chineseNumber = answer.chinese_number;
+                  }
+                }
+              });
+            
+              // 深拷贝保存原始数据
+              this.originalSections = JSON.parse(JSON.stringify(this.questionSections));
+            }
+            })
+          .finally(() => {
+            this.loading = false;
+            
+            // 如果已经加载了考试信息，则获取统计信息
+            if (this.latestExam) {
+              this.getExamStatistics();
+            }
+          });
+      } else {
       // 从Vuex中获取当前登录的教师ID
       const teacherId = this.$store.state.user.userInfo ? this.$store.state.user.userInfo.id : 1;
       
@@ -903,6 +974,7 @@ export default {
             this.getExamStatistics();
           }
         });
+      }
     },
     // 开始编辑
     startEditing() {

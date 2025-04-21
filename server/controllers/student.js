@@ -679,14 +679,24 @@ const studentController = {
         return res.status(400).json({ success: false, message: '缺少必要参数' });
       }
       
-      // 获取正确的question_id
+      // 获取考试的所有题目答案，用于查找正确的question_id和答案信息
       const questionAnswers = await db('question_answers')
-        .select('id', 'chinese_number', 'question_number')
+        .select('id', 'chinese_number', 'question_number', 'section_type', 'answer', 'score')
         .where({ exam_id: examId });
+      
+      // 创建中文题号和题号到question_id的映射
       const questionIdMap = new Map();
+      // 创建题目ID到题目信息的映射
+      const questionInfoMap = new Map();
+      
       questionAnswers.forEach(qa => {
         const key = `${qa.chinese_number}_${qa.question_number}`;
         questionIdMap.set(key, qa.id);
+        questionInfoMap.set(qa.id, {
+          section_type: qa.section_type,
+          standard_answer: qa.answer,
+          score: qa.score
+        });
       });
       
       // 开始数据库事务

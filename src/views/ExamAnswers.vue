@@ -101,6 +101,7 @@
       <!-- 返回按钮 -->
       <div class="back-button-container">
         <el-button type="primary" @click="goBack">返回考试列表</el-button>
+        <el-button type="success" @click="viewExamContent">查看考试内容</el-button>
       </div>
     </div>
   </div>
@@ -302,7 +303,22 @@ export default {
           studentName: student.student_name
         }
       });
-    }
+    },
+    // 查看考试内容
+    viewExamContent() {
+      const examId = this.$route.params.examId;
+      if (!examId) {
+        this.$message.warning('未找到考试ID');
+        return;
+      }
+      
+      this.$router.push({
+        name: 'ExamContent',
+        params: {
+          examId: examId
+        }
+      });
+    },
   },
   created() {
     this.fetchExamDetails();
