@@ -27,8 +27,9 @@ router.get('/wrong-answers-analysis/:examId', studentController.getWrongAnswersA
 // 更新解答题评分
 router.post('/essay-score', studentController.updateEssayQuestionScore);
 
-// 更新填空题正确性
+// 更新填空题
 router.post('/fill-correctness', studentController.updateFillQuestionCorrectness);
-
+// 保存学生答案和批改结果
+router.post('/save-answers-with-grades', studentController.saveStudentAnswersWithGrades);
 
 module.exports = router;

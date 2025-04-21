@@ -624,7 +624,7 @@ const studentController = {
     }
   },
   
-  // 更新填空题正确性更新的方法
+  // 更新填空题
   updateFillQuestionCorrectness: async (req, res) => {
     try {
       const { examId, studentId, questionId, isCorrect } = req.body;
@@ -639,7 +639,7 @@ const studentController = {
         return res.status(400).json({ success: false, message: '缺少必要字段' });
       }
       
-      // 更新student_wrong_answers表中的is_corrected字段
+      // 更新is_corrected字段
       await db('student_wrong_answers')
         .where({
           exam_id: examId,
@@ -658,6 +658,162 @@ const studentController = {
     } catch (error) {
       console.error('更新填空题正确性失败:', error);
       res.status(500).json({ success: false, message: '更新填空题正确性失败: ' + error.message });
+    }
+  },
+
+// 保存学生答案和批改结果
+  saveStudentAnswersWithGrades: async (req, res) => {
+    try {
+      const { examId, studentId, studentName, totalScore, answers } = req.body;
+      
+      console.log('保存学生答案和批改结果 - 参数:', { 
+        examId, 
+        studentId, 
+        studentName, 
+        totalScore, 
+        answersCount: answers ? answers.length : 0 
+      });
+      
+      // 验证参数
+      if (!examId || !studentId || !answers || !Array.isArray(answers)) {
+        return res.status(400).json({ success: false, message: '缺少必要参数' });
+      }
+      
+      // 获取正确的question_id
+      const questionAnswers = await db('question_answers')
+        .select('id', 'chinese_number', 'question_number')
+        .where({ exam_id: examId });
+      const questionIdMap = new Map();
+      questionAnswers.forEach(qa => {
+        const key = `${qa.chinese_number}_${qa.question_number}`;
+        questionIdMap.set(key, qa.id);
+      });
+      
+      // 开始数据库事务
+      await db.transaction(async trx => {
+        // 1. 保存或更新学生成绩
+        const existingGrade = await trx('student_grade')
+          .where({
+            exam_id: examId,
+            student_name: studentId
+          })
+          .first();
+        
+        if (existingGrade) {
+          // 更新现有成绩
+          await trx('student_grade')
+            .where({
+              exam_id: examId,
+              student_name: studentId
+            })
+            .update({
+              score: totalScore
+            });
+        } else {
+          // 创建新成绩记录
+          await trx('student_grade').insert({
+            exam_id: examId,
+            student_name: studentId,
+            score: totalScore
+          });
+        }
+        
+        // 2. 保存学生答案
+        const savedAnswers = [];
+        
+        for (const answer of answers) {
+          // 查找正确的整数类型question_id
+          let questionId;
+          
+          if (answer.questionId && !isNaN(parseInt(answer.questionId))) {
+            // 如果已经是数字ID，直接使用
+            questionId = parseInt(answer.questionId);
+          } else {
+            // 否则通过中文题号和题号查找
+            const key = `${answer.chineseNumber}_${answer.questionNumber}`;
+            questionId = questionIdMap.get(key);
+            
+            if (!questionId) {
+              console.warn(`未找到对应的题目ID: ${key}`);
+              continue;
+            }
+          }
+          
+          console.log(`处理题目: ${answer.chineseNumber}_${answer.questionNumber}, 找到ID: ${questionId}`);
+          
+          // 获取题目信息
+          const questionInfo = questionInfoMap.get(questionId);
+          if (!questionInfo) {
+            console.warn(`未找到题目信息: ${questionId}`);
+            continue;
+          }
+          
+          // 判断答案是否正确
+          let isCorrect = false;
+          
+          // 根据题型判断正确性
+          if (questionInfo.section_type === 'essay') {
+            // 解答题
+            isCorrect = parseFloat(answer.score || 0) >= parseFloat(questionInfo.score || 0);
+          } else {
+            // 选择题、判断题、填空题
+            isCorrect = isAnswerMatched(answer.studentAnswer, questionInfo.standard_answer);
+          }
+          
+          // 检查是否已存在该答案
+          const existingAnswer = await trx('student_wrong_answers')
+            .where({
+              exam_id: examId,
+              student_id: studentId,
+              question_id: questionId
+            })
+            .first();
+          
+          if (existingAnswer) {
+            // 更新现有答案
+            await trx('student_wrong_answers')
+              .where({
+                exam_id: examId,
+                student_id: studentId,
+                question_id: questionId
+              })
+              .update({
+                student_answer: answer.studentAnswer,
+                is_corrected: isCorrect ? 1 : 0,
+                score: answer.score || 0
+              });
+          } else {
+            // 创建新答案记录
+            await trx('student_wrong_answers').insert({
+              exam_id: examId,
+              student_id: studentId,
+              question_id: questionId,
+              student_answer: answer.studentAnswer,
+              is_corrected: isCorrect ? 1 : 0,
+              score: answer.score || 0
+            });
+          }
+          
+          savedAnswers.push(questionId);
+        }
+        
+        return savedAnswers;
+      });
+      
+      res.json({
+        success: true,
+        message: '学生答案和批改结果保存成功',
+        data: {
+          examId,
+          studentId,
+          studentName,
+          totalScore,
+          savedCount: answers.length
+        }
+      });
+    } catch (error) {
+      console.error('保存学生答案和批改结果失败:', error);
+      res.status(500).json({ success: false, message: '保存学生答案和批改结果失败: ' + error.message });
     }
   }
 };

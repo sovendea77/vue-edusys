@@ -171,6 +171,56 @@
         </div>
       </el-card>
     </div>
+    <el-dialog
+    title="教师手动批改"
+    :visible.sync="manualGradingDialogVisible"
+    width="500px"
+  >
+    <div v-if="currentGradingQuestion" class="manual-grading-dialog">
+      <div class="question-info">
+        <div class="info-item">
+          <span class="info-label">题目:</span>
+          <span>{{ currentGradingQuestion.chinese_number }}、{{ currentGradingQuestion.question_number }}.</span>
+        </div>
+        
+        <div class="info-item" v-if="currentGradingQuestion.content">
+          <span class="info-label">题目内容:</span>
+          <div class="info-content">{{ currentGradingQuestion.content }}</div>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">标准答案:</span>
+          <div class="info-content">{{ currentGradingQuestion.correct_answer }}</div>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">学生答案:</span>
+          <div class="info-content">{{ currentGradingQuestion.student_answer || '未作答' }}</div>
+        </div>
+        
+        <div class="info-item">
+          <span class="info-label">总分:</span>
+          <span>{{ currentGradingQuestion.score || 10 }}分</span>
+        </div>
+      </div>
+      
+      <div class="score-input">
+        <span class="score-label">评分:</span>
+        <el-input-number 
+          v-model="manualScore" 
+          :min="0" 
+          :max="currentGradingQuestion.score || 10" 
+          :step="1"
+          size="small"
+        ></el-input-number>
+      </div>
+    </div>
+    
+    <span slot="footer" class="dialog-footer">
+      <el-button @click="manualGradingDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="submitManualGrading">确定</el-button>
+    </span>
+  </el-dialog>
   
   <el-dialog
     title="填空题手动批改"
@@ -418,9 +468,7 @@ submitFillManualGrading() {
       // 更新UI显示
       this.$set(wrongAnswer, 'aiGradeResult', isCorrect ? '正确' : '错误');
       this.$set(wrongAnswer, 'gradeSaved', false);
-    
-      // 保存到数据库
-      await this.saveFillCorrectness(wrongAnswer, isCorrect);
+  
     
       this.$message.success('AI批改完成');
     } catch (error) {

@@ -487,5 +487,152 @@ export const aiApi = {
       console.error('AI批改填空题失败:', error);
       throw error;
     }
+  },
+  
+  /**
+   * 批量批改学生试卷
+   * @param {Object} batchGradeData - 批量批改数据
+   * @param {Array} batchGradeData.standardAnswers - 标准答案数组
+   * @param {Array} batchGradeData.studentAnswers - 学生答案数组
+   * @returns {Promise<Array>} - 返回批改结果数组
+   */
+  batchGradeStudentPaper: async (batchGradeData) => {
+    try {
+      const { standardAnswers, studentAnswers } = batchGradeData;
+      const results = [];
+      
+      // 遍历学生答案
+      for (let i = 0; i < studentAnswers.length; i++) {
+        const studentAnswer = studentAnswers[i];
+        
+        // 查找对应的标准答案
+        const standardAnswer = standardAnswers.find(sa => 
+          sa.chineseNumber === studentAnswer.chineseNumber && 
+          sa.questionNumber === studentAnswer.questionNumber
+        );
+        
+        if (!standardAnswer) {
+          console.warn(`未找到对应的标准答案: ${studentAnswer.chineseNumber}、${studentAnswer.questionNumber}`);
+          continue;
+        }
+        
+        // 根据题型进行不同的批改
+        let isCorrect = false;
+        let score = 0;
+        
+        // 获取题目类型
+        const questionType = standardAnswer.type || 'unknown';
+        
+        switch (questionType) {
+          case 'choice':
+          case 'judgment':
+            // 选择题和判断题直接比较答案
+            isCorrect = studentAnswer.studentAnswer === standardAnswer.answer;
+            score = isCorrect ? standardAnswer.score || 0 : 0;
+            break;
+            
+          case 'fill':
+            // 填空题使用AI批改
+            if (studentAnswer.studentAnswer && standardAnswer.answer) {
+              isCorrect = await aiApi.gradeFillQuestionWithDeepseek({
+                studentAnswer: studentAnswer.studentAnswer,
+                standardAnswer: standardAnswer.answer,
+                questionContent: standardAnswer.content || ''
+              });
+              score = isCorrect ? standardAnswer.score || 0 : 0;
+            } else {
+              isCorrect = false;
+              score = 0;
+            }
+            break;
+            
+          case 'essay':
+            // 解答题使用AI评分
+            if (studentAnswer.studentAnswer && standardAnswer.answer) {
+              // 调用deepseek-v3模型评分
+              const gradeData = {
+                studentAnswer: studentAnswer.studentAnswer,
+                standardAnswer: standardAnswer.answer,
+                totalScore: standardAnswer.score || 0
+              };
+              
+              // 构建提示文本
+              const promptText = `
+请根据标准答案对学生的解答题答案进行评分。
+题目内容：${standardAnswer.content || '无题目内容'}
+标准答案：${standardAnswer.answer}
+学生答案：${studentAnswer.studentAnswer || '未作答'}
+总分：${standardAnswer.score || 0}分
+
+请仅返回一个数字，表示学生获得的分数（0-${standardAnswer.score || 0}之间的数字，不可以有小数）。不要包含任何其他文字或解释。`;
+              
+              // 构建消息
+              const messages = [
+                {
+                  role: "system",
+                  content: "你是一位专业的教育评分者，根据标准答案对学生的解答题答案进行客观评分。请只返回分数，不要有任何其他文字。"
+                },
+                {
+                  role: "user",
+                  content: promptText
+                }
+              ];
+
+              const response = await axios.post(ARK_API_URL, {
+                model: DEEPSEEK_MODEL_ID,
+                stream: false,
+                messages: messages
+              }, {
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${ARK_API_KEY}`
+                }
+              });
+              
+              // 提取分数
+              let scoreText = response.data.choices[0].message.content.trim();
+              const scoreMatch = scoreText.match(/(\d+(\.\d+)?)/);
+              if (scoreMatch) {
+                scoreText = scoreMatch[0];
+              }
+              
+              // 转换为数字
+              score = parseFloat(scoreText);
+              
+              // 确保分数在有效范围内
+              score = Math.min(Math.max(0, score), standardAnswer.score || 0);
+              
+              // 判断是否完全正确
+              isCorrect = score >= (standardAnswer.score || 0);
+            } else {
+              isCorrect = false;
+              score = 0;
+            }
+            break;
+            
+          default:
+            // 未知题型，默认为错误
+            isCorrect = false;
+            score = 0;
+            break;
+        }
+        
+        // 添加批改结果
+        results.push({
+          chineseNumber: studentAnswer.chineseNumber,
+          questionNumber: studentAnswer.questionNumber,
+          studentAnswer: studentAnswer.studentAnswer,
+          standardAnswer: standardAnswer.answer,
+          isCorrect,
+          score,
+          questionType
+        });
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('批量批改学生试卷失败:', error);
+      throw error;
+    }
   }
 };

@@ -493,17 +493,30 @@ export default {
             const studentAnswers = this.parseStudentAnswers(result.originalRecognition);
             console.log(`解析后的学生答案:`, studentAnswers);
             
-            // 如果有答案，保存到数据库
+            // 如果有答案，进行批改并保存到数据库
             if (studentAnswers.length > 0) {
               try {
-                // 生成学生ID（使用学生名字的哈希值作为临时ID）
+                // 获取标准答案
+                const standardAnswers = this.getStandardAnswers();
+                
+                // 使用AI批改学生试卷
+                const batchGradeData = {
+                  standardAnswers,
+                  studentAnswers
+                };
+                
+                // 调用批量批改接口
+                const gradeResults = await aiApi.batchGradeStudentPaper(batchGradeData);
+                console.log(`学生 ${studentName} 的批改结果:`, gradeResults);
+                
+                // 生成学生ID（使用学生名字作为临时ID）
                 const studentId = this.generateStudentId(studentName);
                 
-                // 保存学生答案
-                const saveResult = await this.saveStudentAnswers(this.latestExam.id, studentId, studentAnswers);
-                console.log(`学生 ${studentName} 的答案保存结果:`, saveResult);
+                // 保存学生答案和批改结果
+                const saveResult = await this.saveStudentAnswersWithGrades(this.latestExam.id, studentId, studentName, gradeResults);
+                console.log(`学生 ${studentName} 的答案和批改结果保存结果:`, saveResult);
               } catch (error) {
-                console.error(`保存学生 ${studentName} 的答案失败:`, error);
+                console.error(`批改和保存学生 ${studentName} 的答案失败:`, error);
               }
             }
           }
@@ -514,6 +527,32 @@ export default {
           reject(error);
         }
       });
+    },
+    
+    // 获取标准答案
+    getStandardAnswers() {
+      const standardAnswers = [];
+      
+      // 遍历所有题型区域
+      this.questionSections.forEach((section, sectionIndex) => {
+        const chineseNumber = section.chineseNumber || this.getChineseNumber(sectionIndex + 1);
+        
+        // 遍历该区域的所有题目
+        section.questions.forEach((question, questionIndex) => {
+          const questionNumber = section.startNum + questionIndex;
+          
+          standardAnswers.push({
+            chineseNumber,
+            questionNumber,
+            answer: question.answer,
+            content: question.content,
+            type: section.type,
+            score: section.score / section.questions.length // 平均分配分数
+          });
+        });
+      });
+      
+      return standardAnswers;
     },
     
     // 仅使用doubao模型处理图片
@@ -1006,32 +1045,36 @@ export default {
       return studentName;
     },
     
-    // 保存学生答案到数据库
-    async saveStudentAnswers(examId, studentId, answers) {
-      // 导入学生API
-      const { studentApi } = require('../api/student');
+    // 保存学生答案和批改结果
+    async saveStudentAnswersWithGrades(examId, studentId, studentName, gradeResults) {
+      // 计算总分
+      const totalScore = gradeResults.reduce((sum, result) => sum + result.score, 0);
       
-      // 处理学生答案，确保正确处理'null'字符串
-      const processedAnswers = answers.map(answer => {
-        // 如果学生答案是字符串'null'，将其转换为实际的null值
-        if (answer.studentAnswer === 'null') {
-          return {
-            ...answer,
-            studentAnswer: null
-          };
-        }
-        return answer;
-      });
+      // 准备保存的数据
+      const saveData = {
+        examId,
+        studentId,
+        studentName,
+        totalScore,
+        answers: gradeResults.map(result => ({
+          chineseNumber: result.chineseNumber,
+          questionNumber: result.questionNumber,
+          studentAnswer: result.studentAnswer,
+          standardAnswer: result.standardAnswer,
+          isCorrect: result.isCorrect,
+          score: result.score,
+          questionType: result.questionType
+        }))
+      };
       
-      console.log('处理后的学生答案:', processedAnswers);
-      
-      // 调用API保存学生答案
-      const response = await studentApi.saveStudentWrongAnswers(examId, studentId, processedAnswers);
+      // 调用API保存学生答案和批改结果
+      const response = await studentApi.saveStudentAnswersWithGrades(saveData);
       
       if (response.data.success) {
         return {
           success: true,
-          savedCount: response.data.data.savedCount
+          savedCount: response.data.data.savedCount,
+          totalScore
         };
       } else {
         throw new Error(response.data.message || '保存学生答案失败');

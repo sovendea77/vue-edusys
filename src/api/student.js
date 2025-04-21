@@ -58,17 +58,71 @@ export const studentApi = {
     });
   },
   
-  // 更新填空题正确性
+  // 更新填空题
   updateFillQuestionCorrectness: (examId, studentId, questionId, isCorrect) => {
     const validQuestionId = questionId || 'default';
     
-    console.log('更新填空题正确性 - 参数:', { examId, studentId, questionId: validQuestionId, isCorrect });
+    console.log('更新填空题:', { examId, studentId, questionId: validQuestionId, isCorrect });
     
     return axios.post(`${API_BASE_URL}/students/fill-correctness`, {
       examId,
       studentId,
       questionId: validQuestionId,
       isCorrect
+    });
+  },
+  
+  // 保存学生答案和批改结果
+  saveStudentAnswersWithGrades: (saveData) => {
+    console.log('保存学生答案和批改结果:', saveData);
+    return axios.post(`${API_BASE_URL}/students/save-answers-with-grades`, saveData);
+  },
+  
+  // 批量保存学生错题答案
+  batchSaveStudentWrongAnswers: async (examId, studentId, studentName, answers) => {
+    console.log('批量保存学生错题答案:', { examId, studentId, studentName, answersCount: answers.length });
+
+    const { aiApi } = require('./ai');
+    
+    // 处理每个答案
+    const processedAnswers = [];
+    
+    for (const answer of answers) {
+      // 复制原始答案
+      const processedAnswer = { ...answer };
+      
+      // 根据题型进行不同处理
+      if (answer.questionType === 'essay') {
+        // 解答题使用AI批改
+        try {
+          const gradeData = {
+            studentAnswer: answer.studentAnswer,
+            standardAnswer: answer.standardAnswer,
+            totalScore: answer.score || 0
+          };
+          
+          const score = await aiApi.gradeEssayQuestionWithDeepseek(gradeData);
+          
+          // 更新分数
+          processedAnswer.score = score;
+          processedAnswer.isCorrect = score >= (answer.score || 0);
+        } catch (error) {
+          console.error('AI批改解答题失败:', error);
+          // 如果AI批改失败，默认为0分
+          processedAnswer.score = 0;
+          processedAnswer.isCorrect = false;
+        }
+      }
+      
+      processedAnswers.push(processedAnswer);
+    }
+    
+    // 保存处理后的答案
+    return axios.post(`${API_BASE_URL}/students/wrong-answers`, {
+      examId,
+      studentId,
+      studentName,
+      answers: processedAnswers
     });
   }
 };
