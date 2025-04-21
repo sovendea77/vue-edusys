@@ -139,6 +139,10 @@ html, body {
   color: #fff;
 }
 
+.el-container {
+  height: 100%;
+}
+
 .el-aside {
   background-color: #545c64;
   color: #fff;

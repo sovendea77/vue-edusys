@@ -22,7 +22,7 @@
     
     <div v-else class="answer-definition-section">
       <div class="exam-info">
-        <h2>{{ latestExam.title || '考试名称' }}</h2>
+        <h2><br>{{ latestExam.title || '考试名称' }}</h2>
         <p v-if="latestExam.description">{{ latestExam.description }}</p>
         <p class="exam-date">创建时间: {{ formatDate(latestExam.created_at) }}</p>
       </div>      

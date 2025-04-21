@@ -76,11 +76,14 @@ export default {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #f3f3f3;
+  background-image: url('../../picture/风景.png');
+  background-size: cover;
+  background-position: center;
 }
 
 .login-card {
   width: 400px;
+  background-color: rgba(255, 255, 255, 0.6);
 }
 
 .header {
