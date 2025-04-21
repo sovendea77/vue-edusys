@@ -40,9 +40,64 @@
             <span class="answer-label">学生答案:</span>
             <span class="student-answer">{{ wrongAnswer.student_answer || '未作答' }}</span>
           </div>
+          <!-- 在学生答案和正确答案显示后，添加填空题批改部分 -->
           <div class="answer-item">
             <span class="answer-label">正确答案:</span>
             <span class="correct-answer">{{ wrongAnswer.correct_answer }}</span>
+          </div>
+          
+          <!-- 添加填空题批改部分 -->
+          <div v-if="isFillQuestion(wrongAnswer.chinese_number)" class="fill-grading-section">
+            <div class="grading-buttons">
+              <el-button 
+                type="warning" 
+                size="small" 
+                icon="el-icon-edit"
+                :loading="wrongAnswer.aiGrading"
+                @click="gradeFillWithAI(wrongAnswer)"
+              >
+                AI批改
+              </el-button>
+              
+              <el-button 
+                type="primary" 
+                size="small" 
+                icon="el-icon-user"
+                @click="showManualGradingForFill(wrongAnswer)"
+              >
+                手动批改
+              </el-button>
+            </div>
+            
+            <div v-if="wrongAnswer.aiGradeResult !== undefined" class="ai-grade-result">
+              <span class="grade-label">AI评判:</span>
+              <span class="grade-score" :class="{'correct': wrongAnswer.aiGradeResult === '正确', 'incorrect': wrongAnswer.aiGradeResult === '错误'}">
+                {{ wrongAnswer.aiGradeResult }}
+              </span>
+              <el-button 
+                type="success" 
+                size="mini" 
+                @click="saveFillCorrectness(wrongAnswer, wrongAnswer.aiGradeResult === '正确')"
+                :disabled="wrongAnswer.gradeSaved"
+              >
+                {{ wrongAnswer.gradeSaved ? '已保存' : '保存结果' }}
+              </el-button>
+            </div>
+            
+            <div v-if="wrongAnswer.manualGradeResult !== undefined" class="manual-grade-result">
+              <span class="grade-label">教师评判:</span>
+              <span class="grade-score" :class="{'correct': wrongAnswer.manualGradeResult === '正确', 'incorrect': wrongAnswer.manualGradeResult === '错误'}">
+                {{ wrongAnswer.manualGradeResult }}
+              </span>
+              <el-button 
+                type="success" 
+                size="mini" 
+                @click="saveFillCorrectness(wrongAnswer, wrongAnswer.manualGradeResult === '正确')"
+                :disabled="wrongAnswer.gradeSaved"
+              >
+                {{ wrongAnswer.gradeSaved ? '已保存' : '保存结果' }}
+              </el-button>
+            </div>
           </div>
           
           <div v-if="isEssayQuestion(wrongAnswer.chinese_number)" class="essay-grading-section">
@@ -116,9 +171,10 @@
         </div>
       </el-card>
     </div>
+  
   <el-dialog
-    title="教师手动批改"
-    :visible.sync="manualGradingDialogVisible"
+    title="填空题手动批改"
+    :visible.sync="fillManualGradingDialogVisible"
     width="500px"
   >
     <div v-if="currentGradingQuestion" class="manual-grading-dialog">
@@ -142,28 +198,20 @@
           <span class="info-label">学生答案:</span>
           <div class="info-content">{{ currentGradingQuestion.student_answer || '未作答' }}</div>
         </div>
-        
-        <div class="info-item">
-          <span class="info-label">总分:</span>
-          <span>{{ currentGradingQuestion.score || 10 }}分</span>
-        </div>
       </div>
       
-      <div class="score-input">
-        <span class="score-label">评分:</span>
-        <el-input-number 
-          v-model="manualScore" 
-          :min="0" 
-          :max="currentGradingQuestion.score || 10" 
-          :step="1"
-          size="small"
-        ></el-input-number>
+      <div class="fill-judgment">
+        <span class="judgment-label">评判结果:</span>
+        <el-radio-group v-model="fillJudgment">
+          <el-radio label="正确">正确</el-radio>
+          <el-radio label="错误">错误</el-radio>
+        </el-radio-group>
       </div>
     </div>
     
     <span slot="footer" class="dialog-footer">
-      <el-button @click="manualGradingDialogVisible = false">取消</el-button>
-      <el-button type="primary" @click="submitManualGrading">确定</el-button>
+      <el-button @click="fillManualGradingDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="submitFillManualGrading">确定</el-button>
     </span>
   </el-dialog>
   </div>
@@ -186,10 +234,13 @@ export default {
       error: null,
       manualGradingDialogVisible: false,
       currentGradingQuestion: null,
-      manualScore: 0
+      manualScore: 0,
+      fillManualGradingDialogVisible: false,
+      fillJudgment: '正确'
     };
   },
   methods: {
+    
     // 获取学生错题详情
     fetchWrongAnswers() {
       this.loading = true;
@@ -283,6 +334,24 @@ export default {
       }
       return '未知题型';
     },
+    // 显示填空题手动批改对话框
+showManualGradingForFill(wrongAnswer) {
+  this.currentGradingQuestion = wrongAnswer;
+  this.fillJudgment = wrongAnswer.manualGradeResult || '正确';
+  this.fillManualGradingDialogVisible = true;
+},
+
+// 提交填空题手动批改
+submitFillManualGrading() {
+  if (!this.currentGradingQuestion) return;
+  
+  // 更新UI显示
+  this.$set(this.currentGradingQuestion, 'manualGradeResult', this.fillJudgment);
+  this.$set(this.currentGradingQuestion, 'gradeSaved', false);
+  
+  this.fillManualGradingDialogVisible = false;
+  this.$message.success('教师评判已设置');
+},
     
     // 判断是否为解答题
     isEssayQuestion(chineseNumber) {
@@ -320,6 +389,80 @@ export default {
         this.$set(wrongAnswer, 'aiGrading', false);
       }
     },
+
+  // 判断是否为填空题
+  isFillQuestion(chineseNumber) {
+    const wrongAnswer = this.wrongAnswers.find(item => item.chinese_number === chineseNumber);
+    if (wrongAnswer && wrongAnswer.section_type) {
+      const sectionType = wrongAnswer.section_type.toLowerCase();
+      return sectionType === 'fill' || sectionType.includes('填空');
+    }
+    return false;
+  },
+
+  // AI批改填空题
+  async gradeFillWithAI(wrongAnswer) {
+    if (wrongAnswer.aiGrading) return;
+    this.$set(wrongAnswer, 'aiGrading', true);
+  
+    try {
+      const gradeData = {
+        studentAnswer: wrongAnswer.student_answer || '未作答',
+        standardAnswer: wrongAnswer.correct_answer,
+        questionContent: wrongAnswer.content || '无题目内容'
+      };
+
+      // 调用AI
+      const isCorrect = await aiApi.gradeFillQuestionWithDeepseek(gradeData);
+    
+      // 更新UI显示
+      this.$set(wrongAnswer, 'aiGradeResult', isCorrect ? '正确' : '错误');
+      this.$set(wrongAnswer, 'gradeSaved', false);
+    
+      // 保存到数据库
+      await this.saveFillCorrectness(wrongAnswer, isCorrect);
+    
+      this.$message.success('AI批改完成');
+    } catch (error) {
+      console.error('AI批改失败:', error);
+      this.$message.error('AI批改失败: ' + (error.message || '未知错误'));
+    } finally {
+      this.$set(wrongAnswer, 'aiGrading', false);
+    }
+  },
+
+  // 保存填空题
+  async saveFillCorrectness(wrongAnswer, isCorrect) {
+    try {
+      const questionId = wrongAnswer.question_id || wrongAnswer.id;
+    
+      if (!questionId) {
+        console.error('错误: 无法获取题目ID', wrongAnswer);
+        this.$message.error('保存批改结果失败: 无法获取题目ID');
+        return;
+      }
+    
+      console.log('保存填空题正确性 - 使用的questionId:', questionId);
+    
+      const response = await studentApi.updateFillQuestionCorrectness(
+        this.examId,
+        this.studentId,
+        questionId,
+        isCorrect
+      );
+    
+      if (response.data.success) {
+        this.$set(wrongAnswer, 'gradeSaved', true);
+        this.$set(wrongAnswer, 'is_corrected', isCorrect);
+        this.$message.success('批改结果已保存到数据库');
+      } else {
+        throw new Error(response.data.message || '保存批改结果失败');
+      }
+    } catch (error) {
+      console.error('保存批改结果失败:', error);
+      this.$message.error('保存批改结果失败: ' + (error.message || '未知错误'));
+    }
+  },
     
     // 显示手动批改对话框
     showManualGrading(wrongAnswer) {
@@ -371,6 +514,8 @@ export default {
         
         if (response.data.success) {
           this.$set(wrongAnswer, 'gradeSaved', true);
+          // 更新本地score字段，确保UI显示正确
+          this.$set(wrongAnswer, 'score', score);
           this.$message.success('评分已保存到数据库');
         } else {
           throw new Error(response.data.message || '保存评分失败');
@@ -622,5 +767,32 @@ export default {
   font-weight: bold;
   margin-right: 15px;
   color: #606266;
+}
+
+.fill-grading-section {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.fill-judgment {
+  margin-top: 15px;
+}
+
+.judgment-label {
+  margin-right: 10px;
+  font-weight: bold;
+}
+
+.correct {
+  color: #67C23A;
+  font-weight: bold;
+}
+
+.incorrect {
+  color: #F56C6C;
+  font-weight: bold;
 }
 </style>

@@ -372,10 +372,18 @@ const studentController = {
       // 直接从考试表中获取总分
       const totalScore = exam.total_score || 0;
       
-      // 获取所有学生的答案
-      const studentAnswers = await db('student_wrong_answers')
-        .select('student_id', 'question_id', 'is_corrected')
-        .where({ exam_id: examId });
+      // 获取所有学生的答案，同时获取题目类型和分数信息
+      const studentAnswers = await db('student_wrong_answers as swa')
+        .select(
+          'swa.student_id', 
+          'swa.question_id', 
+          'swa.is_corrected',
+          'swa.score as student_score',
+          'qa.section_type',
+          'qa.score as question_score'
+        )
+        .join('question_answers as qa', 'swa.question_id', 'qa.id')
+        .where({ 'swa.exam_id': examId });
       
       // 如果没有学生答案，直接返回
       if (studentAnswers.length === 0) {
@@ -386,15 +394,6 @@ const studentController = {
         });
       }
       
-      // 获取考试的所有题目答案
-      const questionAnswers = await examModel.getQuestionAnswers(examId);
-      
-      // 创建题目ID到分数的映射
-      const questionScoreMap = new Map();
-      questionAnswers.forEach(qa => {
-        questionScoreMap.set(qa.id, qa.score);
-      });
-      
       // 计算每个学生的得分
       const studentScores = new Map();
       studentAnswers.forEach(sa => {
@@ -402,10 +401,19 @@ const studentController = {
           studentScores.set(sa.student_id, 0);
         }
         
-        // 如果答案正确，加上该题的分数
-        if (sa.is_corrected && questionScoreMap.has(sa.question_id)) {
-          const score = questionScoreMap.get(sa.question_id);
-          studentScores.set(sa.student_id, studentScores.get(sa.student_id) + score);
+        if (sa.section_type === 'essay') {
+          if (sa.student_score) {
+            studentScores.set(
+              sa.student_id, 
+              studentScores.get(sa.student_id) + parseFloat(sa.student_score)
+            );
+          }
+        } 
+        else if (sa.is_corrected) {
+          studentScores.set(
+            sa.student_id, 
+            studentScores.get(sa.student_id) + parseFloat(sa.question_score || 0)
+          );
         }
       });
       
@@ -547,7 +555,7 @@ const studentController = {
         .where({
           exam_id: examId,
           student_id: studentId,
-          id: questionId
+          question_id: questionId  
         })
         .update({ 
           is_corrected: isFullScore ? 1 : 0,  
@@ -590,7 +598,7 @@ const studentController = {
           })
           .update({ score: totalScore });
       } else {
-
+        console.log(33333);
         await db('student_grade').insert({
           student_name: studentId,
           exam_id: examId,
@@ -613,6 +621,43 @@ const studentController = {
     } catch (error) {
       console.error('更新解答题评分失败:', error);
       res.status(500).json({ success: false, message: '更新解答题评分失败: ' + error.message });
+    }
+  },
+  
+  // 更新填空题正确性更新的方法
+  updateFillQuestionCorrectness: async (req, res) => {
+    try {
+      const { examId, studentId, questionId, isCorrect } = req.body;
+      
+      console.log('更新填空题正确性 - examId:', examId);
+      console.log('更新填空题正确性 - studentId:', studentId);
+      console.log('更新填空题正确性 - questionId:', questionId);
+      console.log('更新填空题正确性 - isCorrect:', isCorrect);
+      
+      // 验证必要字段
+      if (!examId || !studentId || !questionId) {
+        return res.status(400).json({ success: false, message: '缺少必要字段' });
+      }
+      
+      // 更新student_wrong_answers表中的is_corrected字段
+      await db('student_wrong_answers')
+        .where({
+          exam_id: examId,
+          student_id: studentId,
+          question_id: questionId
+        })
+        .update({
+          is_corrected: isCorrect ? 1 : 0
+        });
+      
+      res.json({
+        success: true,
+        message: '填空题正确性更新成功',
+        data: { isCorrect }
+      });
+    } catch (error) {
+      console.error('更新填空题正确性失败:', error);
+      res.status(500).json({ success: false, message: '更新填空题正确性失败: ' + error.message });
     }
   }
 };

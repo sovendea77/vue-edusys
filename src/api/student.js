@@ -56,5 +56,19 @@ export const studentApi = {
       questionId: validQuestionId,
       score
     });
+  },
+  
+  // 更新填空题正确性
+  updateFillQuestionCorrectness: (examId, studentId, questionId, isCorrect) => {
+    const validQuestionId = questionId || 'default';
+    
+    console.log('更新填空题正确性 - 参数:', { examId, studentId, questionId: validQuestionId, isCorrect });
+    
+    return axios.post(`${API_BASE_URL}/students/fill-correctness`, {
+      examId,
+      studentId,
+      questionId: validQuestionId,
+      isCorrect
+    });
   }
 };
