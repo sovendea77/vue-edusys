@@ -12,7 +12,7 @@
           :key="exam.id" 
           class="exam-card" 
           shadow="hover"
-          @click.native="viewExamAnswers(exam.id)"
+          @click.native="viewExamContent(exam.id)"
         >
           <div class="exam-card-content">
             <div class="exam-id">考试ID: {{ exam.id }}</div>

@@ -5,7 +5,6 @@ import Login from '../views/Login.vue'
 import TeacherManagement from '../views/TeacherManagement.vue'
 import CreateExam from '../views/CreateExam.vue'
 import DefineAnswers from '../views/DefineAnswers.vue'
-import ExamAnswers from '../views/ExamAnswers.vue'
 import ExamContent from '../views/ExamContent.vue'
 import StudentWrongAnswers from '../views/StudentWrongAnswers.vue'
 import AIAnalysis from '../views/AIAnalysis.vue'
@@ -44,12 +43,6 @@ const router = new Router({
       name: 'DefineAnswers',
       component: DefineAnswers,
       meta: { title: '定义答案', requiresAuth: true }
-    },
-    {
-      path: '/exam/:examId/answers',
-      name: 'ExamAnswers',
-      component: ExamAnswers,
-      meta: { title: '考试答案', requiresAuth: true }
     },
     {
       path: '/exam/:examId/content',

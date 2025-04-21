@@ -27,6 +27,9 @@
         <p class="exam-date">创建时间: {{ formatDate(latestExam.created_at) }}</p>
       </div>      
       
+    <div class="student-info">
+      <el-button icon="el-icon-back" size="small" @click="goBack">返回</el-button>
+    </div>
       <!-- 题目类型列表 -->
       <div class="question-sections">
         <el-card v-for="(section, sectionIndex) in questionSections" :key="sectionIndex" class="question-section-card">
@@ -249,6 +252,10 @@ export default {
     }
   },
   methods: {
+    // 返回首页
+    goBack() {
+      this.$router.push('/');
+    },
     // 显示上传对话框
     showUploadDialog() {
       this.uploadDialogVisible = true;

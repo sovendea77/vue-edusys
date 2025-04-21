@@ -30,7 +30,7 @@
             active-text-color="#ffd04b">
             <el-menu-item index="/">
               <i class="el-icon-s-home"></i>
-              <span slot="title">首页</span>
+              <span slot="title">考试列表</span>
             </el-menu-item>
             <el-menu-item index="/teacher-management" v-if="isAdmin">
               <i class="el-icon-user"></i>

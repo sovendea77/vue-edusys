@@ -351,7 +351,7 @@ export default {
       if (examId) {
         // 如果有考试ID，返回到该考试的答案页面
         this.$router.push({
-          path: `/exam/${examId}/answers`
+          path: `/exam/${examId}/content`
         });
       } else {
         // 如果没有考试ID，返回到首页
