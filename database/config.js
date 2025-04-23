@@ -5,11 +5,25 @@
 module.exports = {
   development: {
     // 开发环境数据库配置
-    client: 'mysql2', // 或 'postgresql', 'mongodb' 等
+    client: 'sqlite3',//mysql2
+    connection: {
+      filename: './database/edusystem.sqlite'
+    },
+    useNullAsDefault: true,
+    migrations: {
+      directory: './migrations'
+    },
+    seeds: {
+      directory: './seeds'
+    }
+  },
+
+  mysql: {
+    client: 'mysql2',
     connection: {
       host: '127.0.0.1',
       user: 'root',
-      password: '123456',
+      password: 'sovendea',
       database: 'edusystem'
     },
     pool: {

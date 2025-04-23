@@ -536,10 +536,6 @@ export default {
               
               // 正则表达式模式 - 改进中文题号匹配
               const sectionPattern = /^([一二三四五六七八九十]{1,3})?[、.：:]?\s*(选择题|填空题|判断题|解答题)(?:[:：])?(?:\s*[（(（]\s*(?:每小题|每题)?\s*(\d+)\s*分.*?[）)）])?/;
-              // 添加负向后顾断言(?<!\.)，确保不匹配小数点后的数字
-              const answerPattern = /^\s*(?<!\.)(\d+)[.．、:：]\s*(.+)/;
-              // 不再使用这个正则表达式，保留但不修改
-              const multiAnswersPattern = /(\d+)[.．、:：]\s*([^,，;；]+)[,，;；]?/g; // 用于解析逗号分隔的多个答案
               
               // 首先，按题型分割文本
               // 使用正则表达式匹配题型标题行
@@ -745,20 +741,25 @@ export default {
       
       // 修改正则表达式，使用前瞻断言确保只在下一个题号前停止匹配
       // 使用\b边界匹配和负向后顾断言(?<!\.)，确保不匹配小数点后的数字
-      const multiAnswersPattern = /(?:^|\s)(?<!\.)(\d+)[.．、:：]\s*([^]*?)(?=\s*(?:^|\s)(?<!\.)\d+[.．、:：]|$|\s*,\s*(?:^|\s)(?<!\.)\d+[.．、:：])/g;
+      const multiAnswersPattern = /(?:^|\s)(\d+)[.．、:：]\s*([^]*?)(?=\s*(?:^|\s)\d+[.．、:：]|$|\s*,\s*(?:^|\s)\d+[.．、:：])/g;
       let match;
       let hasMatches = false;
       
       // 尝试使用多答案模式匹配
       while ((match = multiAnswersPattern.exec(line)) !== null) {
-        hasMatches = true;
-        const num = parseInt(match[1], 10);
-        // 移除答案末尾的逗号、句号等标点符号
-        let answer = match[2].trim();
-        answer = answer.replace(/[,，。.;；]+$/, '');
-        
-        console.log(`  多答案匹配: 题号=${num}, 答案="${answer}"`);
-        tempAnswers.push({ num, answer });
+        const fullText = line;
+        const matchIndex = match.index + match[0].indexOf(match[1]);
+        const isPrecededByDecimalPoint = matchIndex > 0 && fullText.charAt(matchIndex - 1) === '.';
+        if (!isPrecededByDecimalPoint) {
+          hasMatches = true;
+          const num = parseInt(match[1], 10);
+          // 移除答案末尾的逗号、句号等标点符号
+          let answer = match[2].trim();
+          answer = answer.replace(/[,，。.;；]+$/, '');
+    
+          console.log(`  多答案匹配: 题号=${num}, 答案="${answer}"`);
+          tempAnswers.push({ num, answer });
+        }
       }
       
       // 如果多答案模式没有匹配成功，尝试使用单答案模式
