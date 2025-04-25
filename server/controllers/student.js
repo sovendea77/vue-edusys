@@ -452,7 +452,8 @@ const studentController = {
   getWrongAnswersAnalysis: async (req, res) => {
     try {
       const { examId } = req.params;
-      const { minErrorCount = 1 } = req.query;
+      let { minErrorCount } = req.query;
+      minErrorCount = parseInt(minErrorCount, 10) || 1; 
       
       console.log('获取错题分析数据 - examId:', examId);
       console.log('获取错题分析数据 - 最小错误次数:', minErrorCount);
