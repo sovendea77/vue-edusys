@@ -3,6 +3,7 @@
  */
 
 module.exports = {
+  //使用打包的sqlite数据库
   development: {
     // 开发环境数据库配置
     client: 'sqlite3',//mysql2
@@ -17,13 +18,13 @@ module.exports = {
       directory: './seeds'
     }
   },
-
+  //使用本地Mysql数据库,若要使用则注释掉上面部分，用development:替换掉下面的mysql:
   mysql: {
     client: 'mysql2',
     connection: {
       host: '127.0.0.1',
       user: 'root',
-      password: 'sovendea',
+      password: '123456',
       database: 'edusystem'
     },
     pool: {

@@ -9,7 +9,7 @@ const ARK_API_KEY = "ef368e0b-4512-41c2-a2c0-4efa63906f6d";
 const ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
 // 模型ID
-const DOUBAO_MODEL_ID = "doubao-1.5-vision-pro-250328"; // doubao-1.5-vision-pro-32k
+const DOUBAO_MODEL_ID = "doubao-1.5-vision-pro-250328"; // doubao-1.5-vision-pro
 const DEEPSEEK_MODEL_ID = "deepseek-v3-250324"; // deepseek-V3
 const DEEPSEEK_R1_MODEL_ID = "deepseek-r1-250120"; // deepseek-R1
 
@@ -29,7 +29,7 @@ export const aiApi = {
   },
 
   /**
-   * 调用doubao-1.5-vision-pro-32k模型处理图片
+   * 调用doubao-1.5-vision-pro模型处理图片
    * @param {Array<string>} base64Images - Base64编码的图片数组
    * @param {string} prompt - 提示文本
    * @returns {Promise<Object>} - 返回模型处理结果

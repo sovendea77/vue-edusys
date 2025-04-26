@@ -123,6 +123,7 @@
       <div class="upload-tip">
           <el-button type="button" size="small" @click="showStudentUploadDialog">批量上传学生试卷</el-button>
           <el-button type="primary" size="small" @click="updateExamStatistics">更新成绩</el-button>
+          <el-button type="success" size="small" @click="analyzeExamStatistics" :loading="aiAnalysisLoading" :disabled="examStatistics.studentCount === 0">AI分析成绩</el-button>
       </div>
 
       <!-- 统计信息展示区域 -->
@@ -176,6 +177,14 @@
             </el-table>
           </div>
         </div>
+        
+        <!-- AI分析结果展示区域 -->
+        <div v-if="showAiAnalysis && aiAnalysisResult" class="ai-analysis-section">
+          <h3 class="ai-analysis-title">AI分析报告</h3>
+          <el-card class="ai-analysis-card">
+            <div class="ai-analysis-content" v-html="aiAnalysisResult.replace(/\n/g, '<br>')"></div>
+          </el-card>
+        </div>
       </div>
 
       <!-- 批量上传学生试卷对话框 -->
@@ -220,6 +229,7 @@
 import { examApi } from '../api/exam';
 import { aiApi } from '../api/ai';
 import { studentApi } from '../api/student';
+import axios from 'axios';
 
 export default {
   name: 'ExamContent',
@@ -248,7 +258,10 @@ export default {
         highestScoreStudent: null
       },
       studentList: [], // 学生列表
-      studentListLoading: false // 学生列表加载状态
+      studentListLoading: false, // 学生列表加载状态
+      aiAnalysisResult: null, // AI分析结果
+      aiAnalysisLoading: false, // AI分析加载状态
+      showAiAnalysis: false // 是否显示AI分析结果
     }
   },
   methods: {
@@ -561,7 +574,86 @@ export default {
       
       return standardAnswers;
     },
-    
+    // AI分析考试成绩
+    analyzeExamStatistics() {
+      if (!this.latestExam || this.examStatistics.studentCount === 0) {
+        this.$message.warning('暂无学生成绩数据，无法进行分析');
+        return;
+      }
+      
+      // 设置按钮加载状态
+      this.aiAnalysisLoading = true;
+      
+      // 准备发送给AI的数据
+      const analysisData = {
+        examTitle: this.latestExam.title || '未命名考试',
+        totalScore: this.examStatistics.totalScore,
+        studentCount: this.examStatistics.studentCount,
+        highestScore: this.examStatistics.highestScore,
+        highestScoreStudent: this.examStatistics.highestScoreStudent,
+        lowestScore: this.examStatistics.lowestScore,
+        averageScore: this.examStatistics.averageScore,
+        studentScores: this.studentList.map(student => ({
+          name: student.student_name,
+          score: student.score
+        }))
+      };
+      
+      // 构建提示文本
+      const promptText = `请对以下考试成绩数据进行分析：
+  考试名称：${analysisData.examTitle}
+  试卷总分：${analysisData.totalScore}分
+  参考学生数：${analysisData.studentCount}人
+  最高分：${analysisData.highestScore}分（${analysisData.highestScoreStudent || '无名'}）
+  最低分：${analysisData.lowestScore}分
+  平均分：${analysisData.averageScore}分
+
+  学生成绩列表：
+  ${analysisData.studentScores.map(s => `${s.name}: ${s.score}分`).join('\n')}
+
+  请提供以下分析：
+  1. 本次考试的整体情况评价
+  2. 成绩分布情况分析
+  3. 针对不同分数段学生的学习建议
+  4. 教师可以采取的改进措施`;
+      
+      // 构建消息
+      const messages = [
+        {
+          role: "system",
+          content: "你是一位专业的教育分析师，擅长分析考试成绩数据并提供有价值的教学建议。请根据提供的考试成绩数据，进行全面的分析，并给出针对性的建议。"
+        },
+        {
+          role: "user",
+          content: promptText
+        }
+      ];
+      
+      // 调用deepseek-V3模型
+      axios.post("https://ark.cn-beijing.volces.com/api/v3/chat/completions", {
+        model: "deepseek-v3-250324",
+        stream: false,
+        messages: messages
+      }, {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ef368e0b-4512-41c2-a2c0-4efa63906f6d`
+        }
+      })
+      .then(response => {
+        // 获取AI分析结果
+        this.aiAnalysisResult = response.data.choices[0].message.content;
+        // 显示分析结果
+        this.showAiAnalysis = true;
+        // 关闭按钮加载状态
+        this.aiAnalysisLoading = false;
+      })
+      .catch(error => {
+        console.error('AI分析考试成绩失败:', error);
+        this.$message.error('AI分析考试成绩失败，请重试');
+        this.aiAnalysisLoading = false;
+      });
+    },
     // 仅使用doubao模型处理图片
     processImagesWithDoubaoOnly(imageFiles) {
       return new Promise(async (resolve, reject) => {
@@ -1289,7 +1381,8 @@ export default {
     if (this.latestExam) {
       this.getExamStatistics();
     }
-  }
+  },
+  
 }
 </script>
 
@@ -1397,6 +1490,19 @@ export default {
   align-items: flex-start;
   width: 100%;
   margin-bottom: 20px;
+}
+
+/* AI分析对话框样式 */
+.analysis-dialog {
+  max-width: 800px;
+  max-height: 80vh;
+}
+
+.analysis-dialog .el-message-box__content {
+  max-height: 60vh;
+  overflow-y: auto;
+  white-space: pre-line;
+  line-height: 1.6;
 }
 
 .essay-input {
@@ -1507,5 +1613,29 @@ export default {
 
 .student-list {
   margin-top: 15px;
+}
+
+/* AI分析结果区域样式 */
+.ai-analysis-section {
+  margin-top: 30px;
+  border-top: 1px solid #ebeef5;
+  padding-top: 20px;
+}
+
+.ai-analysis-title {
+  font-size: 18px;
+  color: #606266;
+  margin-bottom: 15px;
+}
+
+.ai-analysis-card {
+  margin-bottom: 20px;
+}
+
+.ai-analysis-content {
+  line-height: 1.8;
+  white-space: pre-line;
+  color: #303133;
+  font-size: 14px;
 }
 </style>
