@@ -50,3 +50,6 @@ connection: {
 开启后端日志以调试 API 请求。
 3.依赖管理：
 确保安装 compression-webpack-plugin。
+
+管理员账号：admin
+密码：123456

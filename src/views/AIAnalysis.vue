@@ -198,6 +198,8 @@ export default {
         return 'type-fill';
       } else if (chineseNumber === '三') {
         return 'type-judgment';
+      } else if (chineseNumber === '四') {
+        return 'type-essay';
       }
       return '';
     }
@@ -264,7 +266,9 @@ export default {
 .type-judgment {
   background-color: #F56C6C;
 }
-
+.type-essay {
+  background-color: #409EFF;
+}
 .ai-analysis-button-container {
   display: flex;
   justify-content: center;

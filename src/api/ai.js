@@ -172,9 +172,10 @@ export const aiApi = {
           content: [
             {
               type: "text",
-              text: `这是学生试卷我要提取他的填写答案来批改作业，请严格按照中文题号、数字题号.答案的格式输出学生填写的内容，注意每小题前面一定要附上中文题号！严格按照学生填什么你输出什么，若没有填写，就默认填了null，不需要解析。如
+              text: `这是学生试卷我要提取他的填写答案来批改作业，请严格按照中文题号、数字题号.答案的格式输出学生填写的内容，注意每小题前面一定要附上中文题号！
+              严格按照学生填什么你输出什么，若没有填写，就默认填了null，不需要解析。注意，一个数字题号可以包含多个(1)(2)这种带括号的题号，按同一道数字题号返回！如
               一、1.A
-              一、2.B
+              一、2.(1)A,(2)B   //一个数字题号包含多个(1)(2)这种带括号的题号时，一定不要换行返回，按照同一个数字题号2返！
               一、3.null   //若没有填写默认为null`
             },
             ...base64Images.map(base64 => ({
@@ -311,68 +312,6 @@ export const aiApi = {
         throw error;
       }
     },
-  /**
-   * AI批改解答题
-   * @param {Object} gradeData - 批改数据
-   * @param {string} gradeData.studentAnswer - 学生答案
-   * @param {string} gradeData.standardAnswer - 标准答案
-   * @param {number} gradeData.totalScore - 题目总分
-   * @returns {Promise<number>} - 返回AI评分结果
-   */
-  gradeEssayQuestionWithDeepseek: async (gradeData) => {
-    try {
-      const { studentAnswer, standardAnswer, totalScore } = gradeData;
-      
-      // 构建提示文本
-      const promptText = `
-请根据标准答案对学生的解答题答案进行评分。
-标准答案：${standardAnswer}
-学生答案：${studentAnswer}
-总分：${totalScore}分
-
-请仅返回一个数字，表示学生获得的分数（0-${totalScore}之间的数字，不可以有小数）。不要包含任何其他文字或解释。`;
-      
-      // 构建消息
-      const messages = [
-        {
-          role: "system",
-          content: "你是一位专业的教育评分者，根据标准答案对学生的解答题答案进行客观评分。请只返回分数，不要有任何其他文字。"
-        },
-        {
-          role: "user",
-          content: promptText
-        }
-      ];
-
-      const response = await axios.post(ARK_API_URL, {
-        model: DEEPSEEK_MODEL_ID,
-        stream: false,
-        messages: messages
-      }, {
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${ARK_API_KEY}`
-        }
-      });
-      console.log(response.data);
-      // 提取分数
-      let scoreText = response.data.choices[0].message.content.trim();
-      const scoreMatch = scoreText.match(/(\d+(\.\d+)?)/);
-      if (scoreMatch) {
-        scoreText = scoreMatch[0];
-      }
-      // 转换为数字
-      const score = parseFloat(scoreText);
-      
-      // 确保分数在有效范围内
-      const validScore = Math.min(Math.max(0, score), totalScore);
-      
-      return validScore;
-    } catch (error) {
-      console.error('AI批改失败:', error);
-      throw error;
-    }
-  },
     /**
    * AI批改解答题
    * @param {Object} gradeData - 批改数据
@@ -416,7 +355,7 @@ export const aiApi = {
           "Authorization": `Bearer ${ARK_API_KEY}`
         }
       });
-      console.log(response.data);
+      console.log('AI批改解答题响应:', response.data);
       // 提取分数
       let scoreText = response.data.choices[0].message.content.trim();
       const scoreMatch = scoreText.match(/(\d+(\.\d+)?)/);
@@ -557,18 +496,18 @@ export const aiApi = {
               const gradeData = {
                 studentAnswer: studentAnswer.studentAnswer,
                 standardAnswer: standardAnswer.answer,
-                totalScore: standardAnswer.score || 0
+                totalScore: standardAnswer.score*2 || 0
               };
               
               // 构建提示文本
               const promptText = `
-请根据标准答案对学生的解答题答案进行评分。
-题目内容：${standardAnswer.content || '无题目内容'}
-标准答案：${standardAnswer.answer}
-学生答案：${studentAnswer.studentAnswer || '未作答'}
-总分：${standardAnswer.score || 0}分
+              请根据标准答案对学生的解答题答案进行评分。
+              标准答案：${gradeData.standardAnswer}
+              学生答案：${gradeData.studentAnswer}
+              总分：${gradeData.totalScore}分
 
-请仅返回一个数字，表示学生获得的分数（0-${standardAnswer.score || 0}之间的数字，不可以有小数）。不要包含任何其他文字或解释。`;
+              请仅返回一个数字，表示学生获得的分数（0-${gradeData.totalScore}之间的数字，不可以有小数）。不要包含任何其他文字或解释。
+              `;
               
               // 构建消息
               const messages = [
@@ -592,9 +531,9 @@ export const aiApi = {
                   "Authorization": `Bearer ${ARK_API_KEY}`
                 }
               });
-              
               // 提取分数
               let scoreText = response.data.choices[0].message.content.trim();
+              console.log('promptText', promptText);
               const scoreMatch = scoreText.match(/(\d+(\.\d+)?)/);
               if (scoreMatch) {
                 scoreText = scoreMatch[0];
@@ -604,10 +543,10 @@ export const aiApi = {
               score = parseFloat(scoreText);
               
               // 确保分数在有效范围内
-              score = Math.min(Math.max(0, score), standardAnswer.score || 0);
-              
+              score = Math.min(Math.max(0, score), gradeData.totalScore || 0);
+              console.log('AI评分结果:', score);
               // 判断是否完全正确
-              isCorrect = score >= (standardAnswer.score || 0);
+              isCorrect = score >= (gradeData.totalScore || 0);
             } else {
               isCorrect = false;
               score = 0;
@@ -628,7 +567,7 @@ export const aiApi = {
           studentAnswer: studentAnswer.studentAnswer,
           standardAnswer: standardAnswer.answer,
           isCorrect,
-          score,
+          score: score,
           questionType
         });
       }
